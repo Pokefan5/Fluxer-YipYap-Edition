@@ -27,7 +27,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: desktop-${{ inputs.channel }}
+  group: yip-yap-desktop-${{ inputs.channel }}
   cancel-in-progress: true
 
 env:
@@ -429,7 +429,7 @@ jobs:
         env:
           BUILD_CHANNEL: ${{ env.BUILD_CHANNEL }}
         run: >-
-          cargo run --locked --quiet --manifest-path ${{ github.workspace }}/_ci/tools/ci/Cargo.toml -- build-desktop
+          cargo run --locked --manifest-path ${{ github.workspace }}/_ci/tools/ci/Cargo.toml -- build-desktop
           --step package_app_windows_velopack
 
       - name: Analyze Velopack nupkg for long paths
