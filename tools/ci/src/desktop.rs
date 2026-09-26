@@ -4669,7 +4669,7 @@ export const CHANNEL_DISPLAY_NAME = BUILD_CHANNEL;\n"
         }
 
         let entries =
-            velopack_path_lengths(&archive_path, Path::new(r"C:\Users\a\AppData\Local\Fluxer"))
+            velopack_path_lengths(&archive_path, Path::new(r"C:\Users\a\AppData\Local\YipYap"))
                 .unwrap();
 
         assert_eq!(entries[0].name, "deep/path/with/long/file.txt");
