@@ -1818,7 +1818,7 @@ struct VelopackAssetIndexEntry {
 fn windows_package_config(build_channel: &str, arch: &str) -> WindowsPackageConfig {
     let canary = build_channel == "canary";
     let pack_title = if canary { "Fluxer Canary" } else { "YipYap" };
-    WindowsPackageConfig {
+    WindowsPackageConfig { 
         pack_id: if canary {
             "fluxer_desktop_canary"
         } else {
