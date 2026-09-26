@@ -145,7 +145,7 @@ const PLATFORMS: &[Platform] = &[
     Platform {
         platform: "linux",
         arch: "x64",
-        os: "ubuntu-22.04",
+        os: "[self-hosted, Linux, X64]",
         electron_arch: "x64",
     },
     Platform {
