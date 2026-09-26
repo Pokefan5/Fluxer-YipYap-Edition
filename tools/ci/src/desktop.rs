@@ -1828,7 +1828,7 @@ fn windows_package_config(build_channel: &str, arch: &str) -> WindowsPackageConf
         } else {
             "win-x64"
         },
-        main_exe: format!("{pack_title}.exe"),
+        main_exe: format!("YipYap.exe"),
         output_dir: PathBuf::from("dist-electron").join(format!("velopack-windows-{arch}")),
     }
 }
