@@ -123,7 +123,7 @@ const PLATFORMS: &[Platform] = &[
     Platform {
         platform: "windows",
         arch: "x64",
-        os: "self-hosted",
+        os: "[self-hosted, Windows, x64]",
         electron_arch: "x64",
     },
     Platform {
@@ -1684,59 +1684,6 @@ fn check_macho_arch(file: &Path, expected: &str) -> Result<()> {
         file.display()
     );
     Ok(())
-}
-
-const WINDOWS_SIGNING_ENV: &[&str] = &[
-    "AZURE_CLIENT_ID",
-    "AZURE_TENANT_ID",
-    "AZURE_SUBSCRIPTION_ID",
-    "AZURE_ARTIFACT_SIGNING_ENDPOINT",
-    "AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME",
-    "AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME",
-];
-const TRUSTED_SIGNING_EXCLUDED_CREDENTIALS: &[&str] = &[
-    "ManagedIdentityCredential",
-    "WorkloadIdentityCredential",
-    "SharedTokenCacheCredential",
-    "VisualStudioCredential",
-    "VisualStudioCodeCredential",
-    "AzurePowerShellCredential",
-    "AzureDeveloperCliCredential",
-    "InteractiveBrowserCredential",
-];
-
-fn validate_windows_signing_inputs_step() -> Result<()> {
-    let missing = WINDOWS_SIGNING_ENV
-        .iter()
-        .copied()
-        .filter(|name| env_string(name).is_none())
-        .collect::<Vec<_>>();
-    ensure!(
-        missing.is_empty(),
-        "Missing Windows code signing environment variables: {}. Windows releases are always signed; every Azure Trusted Signing input is mandatory and there is no unsigned fallback.",
-        missing.join(" ")
-    );
-    println!(
-        "Windows code signing inputs present: {}",
-        WINDOWS_SIGNING_ENV.join(" ")
-    );
-    Ok(())
-}
-
-#[derive(Debug, Serialize)]
-struct TrustedSigningMetadata {
-    #[serde(rename = "Endpoint")]
-    endpoint: String,
-    #[serde(rename = "CodeSigningAccountName")]
-    code_signing_account_name: String,
-    #[serde(rename = "CertificateProfileName")]
-    certificate_profile_name: String,
-    #[serde(rename = "ExcludeCredentials")]
-    exclude_credentials: Vec<&'static str>,
-}
-
-fn windows_trusted_signing_metadata_path() -> PathBuf {
-    runner_temp().join("velopack-trusted-signing.json")
 }
 
 fn resolve_windows_unpacked_dir_step() -> Result<()> {
