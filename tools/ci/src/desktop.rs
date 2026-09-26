@@ -1564,14 +1564,14 @@ fn verify_bundle_id_step() -> Result<()> {
     ]))?;
 
     let expected = if build_channel == "canary" {
-        "app.fluxer.canary"
+        "app.yipyap.canary"
     } else {
         "app.fluxer"
     };
     let expected_profile = if build_channel == "canary" {
-        "3G5837T29K.app.fluxer.canary"
+        "3G5837T29K.app.yipyap.canary"
     } else {
-        "3G5837T29K.app.fluxer"
+        "3G5837T29K.app.yipyap"
     };
     println!("Bundle id in zip: {bid} (expected: {expected})");
     ensure!(bid == expected, "Unexpected bundle id: {bid}");
@@ -2125,7 +2125,7 @@ fn replace_json_string(value: &mut Value, source: &str, target: &str) -> usize {
 fn find_windows_unpacked_app(arch: &str, main_exe: &str) -> Option<PathBuf> {
     windows_unpacked_candidates(arch)
         .into_iter()
-        .find(|candidate| candidate.join(main_exe).exists())
+        .find(|candidate| candidate.join("YipYap.exe").exists())
 }
 
 fn windows_unpacked_candidates(arch: &str) -> Vec<PathBuf> {
@@ -3714,7 +3714,7 @@ struct ArtifactIdentity {
 }
 
 fn parse_artifact_dir_name(base: &str, channel: &str) -> Option<ArtifactIdentity> {
-    let prefix = format!("fluxer-desktop-{channel}-");
+    let prefix = format!("yipyap-desktop-{channel}-");
     let rest = base.strip_prefix(&prefix)?;
     let (rest, signed) = rest
         .strip_suffix("-signed")
@@ -4363,14 +4363,14 @@ mod tests {
 
         let upload = workflow_job("upload");
         assert!(
-            upload.contains("pattern: fluxer-desktop-${{ needs.meta.outputs.build_channel }}-*"),
+            upload.contains("pattern: yipyap-desktop-${{ needs.meta.outputs.build_channel }}-*"),
             "the upload job must collect every build leg for this channel"
         );
         assert!(upload.contains("path: artifacts"));
-        assert!(upload.contains("name: fluxer-desktop-release-assets"));
+        assert!(upload.contains("name: yipyap-desktop-release-assets"));
 
         let publish = workflow_job("publish_release");
-        assert!(publish.contains("name: fluxer-desktop-release-assets"));
+        assert!(publish.contains("name: yipyap-desktop-release-assets"));
         assert!(publish.contains("path: release_assets"));
 
         for job in ["build", "upload", "publish_release"] {
@@ -4402,16 +4402,16 @@ mod tests {
     #[test]
     fn parses_handoff_artifact_dir_names() {
         assert_eq!(
-            parse_artifact_dir_name("fluxer-desktop-canary-windows-arm64", "canary").unwrap(),
+            parse_artifact_dir_name("yipyap-desktop-canary-windows-arm64", "canary").unwrap(),
             ArtifactIdentity {
                 platform: "windows".to_string(),
                 arch: "arm64".to_string(),
                 signed: false,
             }
         );
-        assert!(parse_artifact_dir_name("fluxer-desktop-stable-linux-x64", "canary").is_none());
+        assert!(parse_artifact_dir_name("yipyap-desktop-stable-linux-x64", "canary").is_none());
         assert_eq!(
-            parse_artifact_dir_name("fluxer-desktop-canary-windows-x64-signed", "canary").unwrap(),
+            parse_artifact_dir_name("yipyap-desktop-canary-windows-x64-signed", "canary").unwrap(),
             ArtifactIdentity {
                 platform: "windows".to_string(),
                 arch: "x64".to_string(),
@@ -4424,15 +4424,15 @@ mod tests {
     fn handoff_artifact_name_only_marks_signed_windows_uploads() {
         assert_eq!(
             handoff_artifact_name("canary", "windows", "x64", true),
-            "fluxer-desktop-canary-windows-x64-signed"
+            "yipyap-desktop-canary-windows-x64-signed"
         );
         assert_eq!(
             handoff_artifact_name("canary", "linux", "x64", true),
-            "fluxer-desktop-canary-linux-x64"
+            "yipyap-desktop-canary-linux-x64"
         );
         assert_eq!(
             handoff_artifact_name("stable", "windows", "arm64", false),
-            "fluxer-desktop-stable-windows-arm64"
+            "yipyap-desktop-stable-windows-arm64"
         );
     }
 
@@ -4480,9 +4480,9 @@ export const CHANNEL_DISPLAY_NAME = BUILD_CHANNEL;\n"
     fn payload_artifact_dirs_prefer_signed_windows_artifacts() {
         let temp = tempfile::tempdir().unwrap();
         let artifacts = temp.path();
-        fs::create_dir_all(artifacts.join("fluxer-desktop-canary-windows-x64")).unwrap();
-        fs::create_dir_all(artifacts.join("fluxer-desktop-canary-windows-x64-signed")).unwrap();
-        fs::create_dir_all(artifacts.join("fluxer-desktop-canary-linux-x64")).unwrap();
+        fs::create_dir_all(artifacts.join("yipyap-desktop-canary-windows-x64")).unwrap();
+        fs::create_dir_all(artifacts.join("yipyap-desktop-canary-windows-x64-signed")).unwrap();
+        fs::create_dir_all(artifacts.join("yipyap-desktop-canary-linux-x64")).unwrap();
         fs::create_dir_all(artifacts.join("unrelated")).unwrap();
 
         let selected = payload_artifact_dirs(artifacts, "canary")
@@ -4500,7 +4500,7 @@ export const CHANNEL_DISPLAY_NAME = BUILD_CHANNEL;\n"
             selected,
             vec![
                 (
-                    "fluxer-desktop-canary-linux-x64".to_string(),
+                    "yipyap-desktop-canary-linux-x64".to_string(),
                     ArtifactIdentity {
                         platform: "linux".to_string(),
                         arch: "x64".to_string(),
@@ -4508,7 +4508,7 @@ export const CHANNEL_DISPLAY_NAME = BUILD_CHANNEL;\n"
                     },
                 ),
                 (
-                    "fluxer-desktop-canary-windows-x64-signed".to_string(),
+                    "yipyap-desktop-canary-windows-x64-signed".to_string(),
                     ArtifactIdentity {
                         platform: "windows".to_string(),
                         arch: "x64".to_string(),
@@ -4523,12 +4523,12 @@ export const CHANNEL_DISPLAY_NAME = BUILD_CHANNEL;\n"
     fn desktop_manifest_uses_checksum_detail_when_present() {
         let temp = tempfile::tempdir().unwrap();
         let root = temp.path();
-        write_file(&root.join("Fluxer-2026.520.1-x64.AppImage"), "app");
+        write_file(&root.join("YipYap-2026.520.1-x64.AppImage"), "app");
         write_file(
-            &root.join("Fluxer-2026.520.1-x64.AppImage.sha256"),
+            &root.join("YipYap-2026.520.1-x64.AppImage.sha256"),
             "abc123\n",
         );
-        write_file(&root.join("Fluxer-2026.520.1-x64.deb"), "deb");
+        write_file(&root.join("YipYap-2026.520.1-x64.deb"), "deb");
 
         let manifest = build_desktop_manifest(
             root,
@@ -4545,14 +4545,14 @@ export const CHANNEL_DISPLAY_NAME = BUILD_CHANNEL;\n"
         assert_eq!(
             manifest.files.get("appimage"),
             Some(&DesktopManifestFile::Detail {
-                filename: "Fluxer-2026.520.1-x64.AppImage".to_string(),
+                filename: "YipYap-2026.520.1-x64.AppImage".to_string(),
                 sha256: "abc123".to_string(),
             })
         );
         assert_eq!(
             manifest.files.get("deb"),
             Some(&DesktopManifestFile::Name(
-                "Fluxer-2026.520.1-x64.deb".to_string()
+                "YipYap-2026.520.1-x64.deb".to_string()
             ))
         );
     }
@@ -4569,7 +4569,7 @@ export const CHANNEL_DISPLAY_NAME = BUILD_CHANNEL;\n"
             minimum_system_version: Some(MACOS_MINIMUM_SYSTEM_VERSION.to_string()),
             files: BTreeMap::from([(
                 "zip".to_string(),
-                DesktopManifestFile::Name("Fluxer-2026.520.1-arm64.zip".to_string()),
+                DesktopManifestFile::Name("YipYap-2026.520.1-arm64.zip".to_string()),
             )]),
         };
 
@@ -4590,7 +4590,7 @@ export const CHANNEL_DISPLAY_NAME = BUILD_CHANNEL;\n"
         let temp = tempfile::tempdir().unwrap();
 
         let darwin_root = temp.path().join("darwin");
-        write_file(&darwin_root.join("Fluxer-2026.520.1-arm64.zip"), "zip");
+        write_file(&darwin_root.join("YipYap-2026.520.1-arm64.zip"), "zip");
         let darwin_manifest = build_desktop_manifest(
             &darwin_root,
             &PayloadManifestInput {
@@ -4608,7 +4608,7 @@ export const CHANNEL_DISPLAY_NAME = BUILD_CHANNEL;\n"
         );
 
         let linux_root = temp.path().join("linux");
-        write_file(&linux_root.join("Fluxer-2026.520.1-x64.deb"), "deb");
+        write_file(&linux_root.join("YipYap-2026.520.1-x64.deb"), "deb");
         let linux_manifest = build_desktop_manifest(
             &linux_root,
             &PayloadManifestInput {
@@ -4623,7 +4623,7 @@ export const CHANNEL_DISPLAY_NAME = BUILD_CHANNEL;\n"
         assert_eq!(linux_manifest.minimum_system_version, None);
 
         let windows_root = temp.path().join("win32");
-        write_file(&windows_root.join("Fluxer-Setup-2026.520.1-x64.exe"), "exe");
+        write_file(&windows_root.join("YipYap-Setup-2026.520.1-x64.exe"), "exe");
         let windows_manifest = build_desktop_manifest(
             &windows_root,
             &PayloadManifestInput {
@@ -4754,16 +4754,16 @@ export const CHANNEL_DISPLAY_NAME = BUILD_CHANNEL;\n"
     #[test]
     fn canary_nupkg_inventory_accepts_percent_encoded_main_executable() {
         let root = Path::new("lib").join("app");
-        let files = expected_windows_pe_inventory("arm64", "Fluxer Canary.exe")
+        let files = expected_windows_pe_inventory("arm64", "YipYap Canary.exe")
             .into_iter()
             .map(|name| {
-                if name == "Fluxer Canary.exe" {
-                    return root.join("Fluxer%20Canary.exe");
+                if name == "YipYap Canary.exe" {
+                    return root.join("YipYap%20Canary.exe");
                 }
                 root.join(name)
             })
             .collect::<Vec<_>>();
-        assert_expected_windows_pe_inventory(&root, &files, "arm64", "Fluxer Canary.exe").unwrap();
+        assert_expected_windows_pe_inventory(&root, &files, "arm64", "YipYap Canary.exe").unwrap();
     }
 
     #[test]
