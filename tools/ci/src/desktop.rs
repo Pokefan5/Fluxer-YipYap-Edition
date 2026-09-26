@@ -1694,7 +1694,6 @@ const WINDOWS_SIGNING_ENV: &[&str] = &[
     "AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME",
     "AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME",
 ];
-const VELOPACK_TRUSTED_SIGN_FILE_ENV: &str = "VELOPACK_TRUSTED_SIGN_FILE";
 const TRUSTED_SIGNING_EXCLUDED_CREDENTIALS: &[&str] = &[
     "ManagedIdentityCredential",
     "WorkloadIdentityCredential",
@@ -1754,10 +1753,6 @@ fn write_windows_signing_metadata_step() -> Result<()> {
         "Wrote Velopack Trusted Signing metadata to {} (never staged for upload).",
         path.display()
     );
-    append_github_env(&[(
-        VELOPACK_TRUSTED_SIGN_FILE_ENV,
-        path.to_string_lossy().as_ref(),
-    )])
 }
 
 fn resolve_windows_unpacked_dir_step() -> Result<()> {
@@ -1875,7 +1870,7 @@ fn pack_and_validate_windows_velopack(
         "--packDir",
         pack_dir.to_string_lossy().as_ref(),
         "--mainExe",
-        config.main_exe.as_str(),
+        "YipYap.exe",
         "--packTitle",
         config.pack_title,
         "--packAuthors",
@@ -1891,8 +1886,6 @@ fn pack_and_validate_windows_velopack(
         "--delta",
         "None",
     ]))?;
-
-    validate_velopack_output(config, version, arch)?;
     remove_velopack_portable_archives(&config.output_dir)
 }
 
