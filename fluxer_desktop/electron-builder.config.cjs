@@ -8,14 +8,14 @@ const path = require('node:path');
 const {promisify} = require('node:util');
 const execFileAsync = promisify(execFile);
 const isLinuxBuild = process.argv.includes('--linux');
-const productName = isCanary ? 'Fluxer Canary' : 'Fluxer';
-const linuxOptDirName = isCanary ? 'fluxer-canary' : 'Fluxer';
+const productName = isCanary ? 'YipYap Canary' : 'YipYap';
+const linuxOptDirName = isCanary ? 'yipyap-canary' : 'YipYap';
 const installedProductName = isLinuxBuild ? linuxOptDirName : productName;
-const artifactProductName = isCanary ? 'Fluxer-Canary' : 'Fluxer';
-const appId = isCanary ? 'app.fluxer.canary' : 'app.fluxer';
+const artifactProductName = isCanary ? 'YipYap-Canary' : 'YipYap';
+const appId = isCanary ? 'app.yipyap.canary' : 'app.yipyap';
 const iconDir = isCanary ? 'icons-canary' : 'icons-stable';
-const packageName = isCanary ? 'fluxer_desktop_canary' : 'fluxer_desktop';
-const linuxPackageName = isCanary ? 'fluxer-canary' : 'fluxer';
+const packageName = isCanary ? 'yipyap_desktop_canary' : 'yipyap_desktop';
+const linuxPackageName = isCanary ? 'yipyap-canary' : 'yipyap';
 const linuxDesktopActionIds = ['open-settings', 'new-dm'];
 const linuxDesktopActionList = `${linuxDesktopActionIds.join(';')};`;
 const linuxGlibcBaseline = Object.freeze({major: 2, minor: 35, patch: 0, name: 'GLIBC_2.35'});
@@ -26,8 +26,8 @@ const rpmBuildIdLinkFpmArgs = [
 	'--rpm-rpmbuild-define',
 	'_missing_build_ids_terminate_build 0',
 ];
-const legacyLinuxStableDebPackageName = 'fluxer-app';
-const legacyLinuxStableRpmPackageName = 'fluxer_app';
+const legacyLinuxStableDebPackageName = 'yipyap-app';
+const legacyLinuxStableRpmPackageName = 'yipyap_app';
 const legacyLinuxStablePackageNames = {
 	'.deb': legacyLinuxStableDebPackageName,
 	'.rpm': legacyLinuxStableRpmPackageName,
@@ -38,7 +38,7 @@ const legacyLinuxStableDebFpmArgs = isCanary
 const legacyLinuxStableRpmFpmArgs = isCanary
 	? []
 	: ['--replaces', legacyLinuxStableRpmPackageName, '--conflicts', legacyLinuxStableRpmPackageName];
-const legacyLinuxCanaryOptDir = '/opt/Fluxer Canary';
+const legacyLinuxCanaryOptDir = '/opt/YipYap Canary';
 const legacyLinuxOptDirSweepScript = path.resolve(__dirname, 'packaging/linux/rpm-post-transaction.sh');
 const legacyLinuxOptDirRpmFpmArgs = isCanary ? ['--rpm-posttrans', legacyLinuxOptDirSweepScript] : [];
 const macOSMinimumSystemVersion = '13.0';
@@ -1475,7 +1475,7 @@ async function verifyLinuxArtifactContracts(buildResult) {
 module.exports = {
 	appId,
 	productName: installedProductName,
-	copyright: 'Copyright © 2026 Fluxer Platform AB',
+	copyright: 'Copyright © 2026 Not Fluxer Platform AB',
 	artifactName: `${artifactProductName}-\${version}-\${os}-\${arch}.\${ext}`,
 	directories: {
 		buildResources: 'build_resources',
@@ -1625,11 +1625,11 @@ module.exports = {
 			},
 		],
 		extendInfo: {
-			NSMicrophoneUsageDescription: 'Fluxer needs access to your microphone to enable voice chat features.',
-			NSCameraUsageDescription: 'Fluxer needs access to your camera to enable video chat features.',
-			NSAppleEventsUsageDescription: 'Fluxer needs access to Apple Events for automation features.',
-			NSAudioCaptureUsageDescription: 'Fluxer captures audio from the screen or window you choose to share.',
-			NSScreenCaptureUsageDescription: 'Fluxer captures the screen or window you choose to share.',
+			NSMicrophoneUsageDescription: 'YipYap needs access to your microphone to enable voice chat features.',
+			NSCameraUsageDescription: 'YipYap needs access to your camera to enable video chat features.',
+			NSAppleEventsUsageDescription: 'YipYap needs access to Apple Events for automation features.',
+			NSAudioCaptureUsageDescription: 'YipYap captures audio from the screen or window you choose to share.',
+			NSScreenCaptureUsageDescription: 'YipYap captures the screen or window you choose to share.',
 		},
 	},
 	dmg: {
