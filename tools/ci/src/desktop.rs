@@ -195,16 +195,12 @@ pub async fn run(args: BuildDesktopArgs) -> Result<()> {
         DesktopStep::BuildAppMacos => build_app_step(DesktopBuildPlatform::Macos),
         DesktopStep::VerifyBundleId => verify_bundle_id_step(),
         DesktopStep::BuildAppWindows => build_app_step(DesktopBuildPlatform::Windows),
-        DesktopStep::ValidateWindowsSigningInputs => validate_windows_signing_inputs_step(),
-        DesktopStep::WriteWindowsSigningMetadata => write_windows_signing_metadata_step(),
         DesktopStep::ResolveWindowsUnpackedDir => resolve_windows_unpacked_dir_step(),
-        DesktopStep::VerifyWindowsUnpackedSignatures => verify_windows_unpacked_signatures_step(),
         DesktopStep::PackageAppWindowsVelopack => package_app_windows_velopack_step(),
         DesktopStep::AnalyseVelopackPaths => analyse_velopack_paths_step(),
         DesktopStep::BuildAppLinux => build_app_step(DesktopBuildPlatform::Linux),
         DesktopStep::BuildAppimageUpdateFeed => crate::appimage::build_update_feed_step(),
         DesktopStep::CreatePortableZipWindows => create_portable_zip_windows_step(),
-        DesktopStep::VerifyWindowsSignedArtifacts => verify_windows_signed_artifacts_step(),
         DesktopStep::PrepareArtifactsWindows => prepare_artifacts_windows_step(),
         DesktopStep::PrepareArtifactsUnix => prepare_artifacts_unix_step(),
         DesktopStep::NormaliseUpdaterYaml => normalise_updater_yaml_step(),
@@ -1817,15 +1813,15 @@ struct VelopackAssetIndexEntry {
 
 fn windows_package_config(build_channel: &str, arch: &str) -> WindowsPackageConfig {
     let canary = build_channel == "canary";
-    let pack_title = if canary { "Fluxer Canary" } else { "Fluxer" };
+    let pack_title = if canary { "YipYap Canary" } else { "YipYap" };
     WindowsPackageConfig {
         pack_id: if canary {
-            "fluxer_desktop_canary"
+            "yipyap_desktop_canary"
         } else {
-            "fluxer_desktop"
+            "yipyap_desktop"
         },
         pack_title,
-        artifact_prefix: if canary { "Fluxer-Canary" } else { "Fluxer" },
+        artifact_prefix: if canary { "YipYap-Canary" } else { "YipYap" },
         icon_dir: if canary {
             "icons-canary"
         } else {
@@ -4687,14 +4683,14 @@ export const CHANNEL_DISPLAY_NAME = BUILD_CHANNEL;\n"
     #[test]
     fn windows_package_config_tracks_channel_and_arch() {
         let stable = windows_package_config("stable", "x64");
-        assert_eq!(stable.pack_id, "fluxer_desktop");
+        assert_eq!(stable.pack_id, "yipyap_desktop");
         assert_eq!(stable.runtime, "win-x64");
-        assert_eq!(stable.main_exe, "Fluxer.exe");
+        assert_eq!(stable.main_exe, "YipYap.exe");
 
         let canary = windows_package_config("canary", "arm64");
-        assert_eq!(canary.pack_id, "fluxer_desktop_canary");
+        assert_eq!(canary.pack_id, "yipyap_desktop_canary");
         assert_eq!(canary.runtime, "win-arm64");
-        assert_eq!(canary.main_exe, "Fluxer Canary.exe");
+        assert_eq!(canary.main_exe, "YipYap Canary.exe");
     }
 
     #[test]
@@ -4718,15 +4714,15 @@ export const CHANNEL_DISPLAY_NAME = BUILD_CHANNEL;\n"
         let temp = tempfile::tempdir().unwrap();
         let output_dir = temp.path();
         write_file(
-            &output_dir.join("fluxer_desktop_canary-2026.810.1-Portable.zip"),
+            &output_dir.join("yipyap_desktop_canary-2026.810.1-Portable.zip"),
             "velopack",
         );
         write_file(
-            &output_dir.join("fluxer_desktop_canary-2026.810.1-full.nupkg"),
+            &output_dir.join("yipyap_desktop_canary-2026.810.1-full.nupkg"),
             "payload",
         );
         write_file(
-            &output_dir.join("Fluxer Canary-2026.810.1-win-arm64.exe"),
+            &output_dir.join("YipYap Canary-2026.810.1-win-arm64.exe"),
             "setup",
         );
         write_file(&output_dir.join("RELEASES"), "feed");
@@ -4739,18 +4735,18 @@ export const CHANNEL_DISPLAY_NAME = BUILD_CHANNEL;\n"
             .filter_map(|path| file_name_string(&path).ok())
             .collect::<BTreeSet<_>>();
         assert!(!remaining.iter().any(|name| name.ends_with(".zip")));
-        assert!(remaining.contains("fluxer_desktop_canary-2026.810.1-full.nupkg"));
-        assert!(remaining.contains("Fluxer Canary-2026.810.1-win-arm64.exe"));
+        assert!(remaining.contains("yipyap_desktop_canary-2026.810.1-full.nupkg"));
+        assert!(remaining.contains("YipYap Canary-2026.810.1-win-arm64.exe"));
         assert!(remaining.contains("RELEASES"));
     }
 
     #[test]
     fn percent_encoded_archive_names_match_their_decoded_inventory_entry() {
         assert_eq!(
-            percent_decode_archive_name("Fluxer%20Canary.exe"),
-            "Fluxer Canary.exe"
+            percent_decode_archive_name("YipYap%20Canary.exe"),
+            "YipYap Canary.exe"
         );
-        assert_eq!(percent_decode_archive_name("Fluxer.exe"), "Fluxer.exe");
+        assert_eq!(percent_decode_archive_name("YipYap.exe"), "YipYap.exe");
         assert_eq!(
             percent_decode_archive_name("win-game-capture.win32-arm64-msvc.node"),
             "win-game-capture.win32-arm64-msvc.node"
@@ -4777,7 +4773,7 @@ export const CHANNEL_DISPLAY_NAME = BUILD_CHANNEL;\n"
     #[test]
     fn known_optional_windows_pe_inventory_never_repeats_a_required_binary() {
         for arch in ["x64", "arm64"] {
-            for main_exe in ["Fluxer.exe", "Fluxer Canary.exe"] {
+            for main_exe in ["YipYap.exe", "YipYap Canary.exe"] {
                 assert_eq!(
                     contradictory_optional_windows_pe_inventory(arch, main_exe),
                     Vec::<String>::new(),
