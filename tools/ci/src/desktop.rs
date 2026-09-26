@@ -1847,25 +1847,14 @@ fn package_app_windows_velopack_step() -> Result<()> {
         )
     })?;
     let vpk = find_velopack_cli()?;
-    let trusted_sign_file = PathBuf::from(require_env(VELOPACK_TRUSTED_SIGN_FILE_ENV).context(
-        "Velopack packaging requires the Trusted Signing metadata written by the write_windows_signing_metadata step. Windows packages are never produced unsigned.",
-    )?);
-    ensure!(
-        trusted_sign_file.is_file(),
-        "Velopack Trusted Signing metadata file is missing: {}",
-        trusted_sign_file.display()
-    );
     let packaged = pack_and_validate_windows_velopack(
         &vpk,
         &config,
         &version,
         &arch,
         &pack_dir,
-        &trusted_sign_file,
     );
-    let metadata_removed = remove_file_if_exists(&trusted_sign_file);
     packaged?;
-    metadata_removed?;
     print_directory(&config.output_dir)
 }
 
@@ -1875,10 +1864,7 @@ fn pack_and_validate_windows_velopack(
     version: &str,
     arch: &str,
     pack_dir: &Path,
-    trusted_sign_file: &Path,
 ) -> Result<()> {
-    ensure_velopack_pack_supports(vpk, &["--azureTrustedSignFile"])?;
-
     run_command(CommandSpec::new(vpk).args([
         "--yes",
         "pack",
@@ -1904,8 +1890,6 @@ fn pack_and_validate_windows_velopack(
         config.output_dir.to_string_lossy().as_ref(),
         "--delta",
         "None",
-        "--azureTrustedSignFile",
-        trusted_sign_file.to_string_lossy().as_ref(),
     ]))?;
 
     validate_velopack_output(config, version, arch)?;
