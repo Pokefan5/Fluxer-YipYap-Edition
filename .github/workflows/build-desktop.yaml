@@ -27,7 +27,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: desktop-${{ inputs.channel }}
+  group: yip-yap-desktop-${{ inputs.channel }}
   cancel-in-progress: true
 
 env:
