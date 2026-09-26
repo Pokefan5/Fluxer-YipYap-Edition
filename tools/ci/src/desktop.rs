@@ -1739,22 +1739,6 @@ fn windows_trusted_signing_metadata_path() -> PathBuf {
     runner_temp().join("velopack-trusted-signing.json")
 }
 
-fn write_windows_signing_metadata_step() -> Result<()> {
-    validate_windows_signing_inputs_step()?;
-    let metadata = TrustedSigningMetadata {
-        endpoint: require_env("AZURE_ARTIFACT_SIGNING_ENDPOINT")?,
-        code_signing_account_name: require_env("AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME")?,
-        certificate_profile_name: require_env("AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME")?,
-        exclude_credentials: TRUSTED_SIGNING_EXCLUDED_CREDENTIALS.to_vec(),
-    };
-    let path = windows_trusted_signing_metadata_path();
-    write_json_pretty(&path, &metadata)?;
-    println!(
-        "Wrote Velopack Trusted Signing metadata to {} (never staged for upload).",
-        path.display()
-    );
-}
-
 fn resolve_windows_unpacked_dir_step() -> Result<()> {
     let build_channel = env::var("BUILD_CHANNEL").unwrap_or_else(|_| "stable".to_string());
     let arch = require_env("ARCH")?;
