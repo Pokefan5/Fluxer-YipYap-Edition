@@ -587,7 +587,7 @@ mod tests {
     fn valid_raw_options() -> CreateShortcutOptions {
         CreateShortcutOptions {
             lnk_path: Some("C:\\Users\\Example\\Desktop\\Fluxer.lnk".to_string()),
-            target: Some("C:\\Program Files\\Fluxer\\Fluxer.exe".to_string()),
+            target: Some("C:\\Program Files\\Fluxer\\YipYap.exe".to_string()),
             args: None,
             app_user_model_id: None,
             toast_activator_clsid: None,
@@ -602,7 +602,7 @@ mod tests {
         SetRunValueOptions {
             name: Some("velopack.fluxer_desktop_canary".to_string()),
             command: Some(
-                "\"C:\\Users\\Example\\AppData\\Local\\Fluxer\\Fluxer.exe\" --autostart"
+                "\"C:\\Users\\Example\\AppData\\Local\\Fluxer\\YipYap.exe\" --autostart"
                     .to_string(),
             ),
         }
@@ -636,7 +636,7 @@ mod tests {
     fn validation_preserves_optional_fields() {
         let mut raw = valid_raw_options();
         raw.args = Some("--startup".to_string());
-        raw.icon_path = Some("C:\\Program Files\\Fluxer\\Fluxer.exe".to_string());
+        raw.icon_path = Some("C:\\Program Files\\Fluxer\\YipYap.exe".to_string());
         raw.icon_index = Some(2);
         raw.working_dir = Some("C:\\Program Files\\Fluxer".to_string());
         raw.description = Some("Fluxer desktop client".to_string());
@@ -655,7 +655,7 @@ mod tests {
         );
         assert_eq!(
             opts.icon_path.as_deref(),
-            Some("C:\\Program Files\\Fluxer\\Fluxer.exe")
+            Some("C:\\Program Files\\Fluxer\\YipYap.exe")
         );
         assert_eq!(opts.icon_index, 2);
         assert_eq!(
@@ -690,7 +690,7 @@ mod tests {
         assert_eq!(opts.name, "velopack.fluxer_desktop_canary");
         assert_eq!(
             opts.command,
-            "\"C:\\Users\\Example\\AppData\\Local\\Fluxer\\Fluxer.exe\" --autostart"
+            "\"C:\\Users\\Example\\AppData\\Local\\Fluxer\\YipYap.exe\" --autostart"
         );
     }
 

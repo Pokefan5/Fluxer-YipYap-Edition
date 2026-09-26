@@ -4689,7 +4689,7 @@ export const CHANNEL_DISPLAY_NAME = BUILD_CHANNEL;\n"
         let stable = windows_package_config("stable", "x64");
         assert_eq!(stable.pack_id, "fluxer_desktop");
         assert_eq!(stable.runtime, "win-x64");
-        assert_eq!(stable.main_exe, "Fluxer.exe");
+        assert_eq!(stable.main_exe, "YipYap.exe");
 
         let canary = windows_package_config("canary", "arm64");
         assert_eq!(canary.pack_id, "fluxer_desktop_canary");
@@ -4750,7 +4750,7 @@ export const CHANNEL_DISPLAY_NAME = BUILD_CHANNEL;\n"
             percent_decode_archive_name("Fluxer%20Canary.exe"),
             "Fluxer Canary.exe"
         );
-        assert_eq!(percent_decode_archive_name("Fluxer.exe"), "Fluxer.exe");
+        assert_eq!(percent_decode_archive_name("YipYap.exe"), "YipYap.exe");
         assert_eq!(
             percent_decode_archive_name("win-game-capture.win32-arm64-msvc.node"),
             "win-game-capture.win32-arm64-msvc.node"
@@ -4777,7 +4777,7 @@ export const CHANNEL_DISPLAY_NAME = BUILD_CHANNEL;\n"
     #[test]
     fn known_optional_windows_pe_inventory_never_repeats_a_required_binary() {
         for arch in ["x64", "arm64"] {
-            for main_exe in ["Fluxer.exe", "Fluxer Canary.exe"] {
+            for main_exe in ["YipYap.exe", "Fluxer Canary.exe"] {
                 assert_eq!(
                     contradictory_optional_windows_pe_inventory(arch, main_exe),
                     Vec::<String>::new(),
