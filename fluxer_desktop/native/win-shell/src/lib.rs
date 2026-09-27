@@ -602,7 +602,7 @@ mod tests {
         SetRunValueOptions {
             name: Some("velopack.fluxer_desktop_canary".to_string()),
             command: Some(
-                "\"C:\\Users\\Example\\AppData\\Local\\YipYap\\YipYap.exe\" --autostart"
+                "\"C:\\Users\\Example\\AppData\\Local\\Fluxer\\YipYap.exe\" --autostart"
                     .to_string(),
             ),
         }
