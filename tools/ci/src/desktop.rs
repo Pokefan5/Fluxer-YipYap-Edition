@@ -125,7 +125,7 @@ const PLATFORMS: &[Platform] = &[
     Platform {
         platform: "windows",
         arch: "x64",
-        os: "yipyap-desktop-runner",
+        os: "yipyap-windows-runner",
         electron_arch: "x64",
     },
     Platform {
@@ -1885,8 +1885,6 @@ fn pack_and_validate_windows_velopack(
         config.output_dir.to_string_lossy().as_ref(),
         "--delta",
         "None",
-        "--signExclude",
-        "*"
     ]))?;
     remove_velopack_portable_archives(&config.output_dir)
 }
