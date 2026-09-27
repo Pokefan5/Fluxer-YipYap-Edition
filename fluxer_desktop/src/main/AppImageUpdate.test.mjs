@@ -50,7 +50,7 @@ function loadAppImageUpdate(env = {}, overrides = {}, requireImpl = require) {
 	return module.exports;
 }
 
-const INSTALLED_NAME = 'My Fluxer.AppImage';
+const INSTALLED_NAME = 'My YipYap.AppImage';
 const OLD_BYTES = Buffer.from('old-appimage-payload');
 const NEW_BYTES = Buffer.alloc(400_000, 7);
 const NEW_SHA256 = createHash('sha256').update(NEW_BYTES).digest('hex');
@@ -635,7 +635,7 @@ describe('AppImageUpdate abandoned staging cleanup', () => {
 
 	test('leaves a staged update belonging to another AppImage in the same directory alone', async () => {
 		const install = createInstall();
-		const siblingPath = join(install.applications, 'Fluxer Canary.AppImage');
+		const siblingPath = join(install.applications, 'YipYap Canary.AppImage');
 		writeFileSync(siblingPath, OLD_BYTES, {mode: 0o755});
 		const appImageUpdate = loadAppImageUpdate({APPIMAGE: install.installedPath});
 		const resolved = appImageUpdate.resolveAppImageTarget();
@@ -672,7 +672,7 @@ describe('AppImageUpdate abandoned staging cleanup', () => {
 
 	test('leaves everything that is not one of this AppImage staging directories alone', () => {
 		const install = createInstall();
-		const neighbours = ['Fluxer Canary.AppImage', '.fluxer-update-notes.txt', '.fluxer-update-'];
+		const neighbours = ['YipYap Canary.AppImage', '.fluxer-update-notes.txt', '.fluxer-update-'];
 		for (const name of neighbours) {
 			writeFileSync(join(install.applications, name), 'keep');
 		}

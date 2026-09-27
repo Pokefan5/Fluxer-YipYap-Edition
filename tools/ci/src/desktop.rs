@@ -94,6 +94,8 @@ enum DesktopStep {
     BuildAppMacos,
     VerifyBundleId,
     BuildAppWindows,
+    ValidateWindowsSigningInputs,
+    WriteWindowsSigningMetadata,
     ResolveWindowsUnpackedDir,
     PackageAppWindowsVelopack,
     AnalyseVelopackPaths,
@@ -192,6 +194,8 @@ pub async fn run(args: BuildDesktopArgs) -> Result<()> {
         DesktopStep::BuildAppMacos => build_app_step(DesktopBuildPlatform::Macos),
         DesktopStep::VerifyBundleId => verify_bundle_id_step(),
         DesktopStep::BuildAppWindows => build_app_step(DesktopBuildPlatform::Windows),
+        DesktopStep::ValidateWindowsSigningInputs => validate_windows_signing_inputs_step(),
+        DesktopStep::WriteWindowsSigningMetadata => write_windows_signing_metadata_step(),
         DesktopStep::ResolveWindowsUnpackedDir => resolve_windows_unpacked_dir_step(),
         DesktopStep::PackageAppWindowsVelopack => package_app_windows_velopack_step(),
         DesktopStep::AnalyseVelopackPaths => analyse_velopack_paths_step(),
@@ -231,7 +235,7 @@ fn calver_env_from_process() -> CalverEnv {
 }
 
 fn set_metadata_step(channel: &str) -> Result<()> {
-    let version = resolve_calver(&calver_env_from_process(), Utc::now())?;
+    let version = format!("{}{}", "1", resolve_calver(&calver_env_from_process(), Utc::now())?);
     let pub_date = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
     let build_channel = if channel == "canary" {
         "canary"
@@ -1687,6 +1691,80 @@ fn check_macho_arch(file: &Path, expected: &str) -> Result<()> {
     Ok(())
 }
 
+const WINDOWS_SIGNING_ENV: &[&str] = &[
+    "AZURE_CLIENT_ID",
+    "AZURE_TENANT_ID",
+    "AZURE_SUBSCRIPTION_ID",
+    "AZURE_ARTIFACT_SIGNING_ENDPOINT",
+    "AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME",
+    "AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME",
+];
+const VELOPACK_TRUSTED_SIGN_FILE_ENV: &str = "VELOPACK_TRUSTED_SIGN_FILE";
+const TRUSTED_SIGNING_EXCLUDED_CREDENTIALS: &[&str] = &[
+    "ManagedIdentityCredential",
+    "WorkloadIdentityCredential",
+    "SharedTokenCacheCredential",
+    "VisualStudioCredential",
+    "VisualStudioCodeCredential",
+    "AzurePowerShellCredential",
+    "AzureDeveloperCliCredential",
+    "InteractiveBrowserCredential",
+];
+
+fn validate_windows_signing_inputs_step() -> Result<()> {
+    let missing = WINDOWS_SIGNING_ENV
+        .iter()
+        .copied()
+        .filter(|name| env_string(name).is_none())
+        .collect::<Vec<_>>();
+    ensure!(
+        missing.is_empty(),
+        "Missing Windows code signing environment variables: {}. Windows releases are always signed; every Azure Trusted Signing input is mandatory and there is no unsigned fallback.",
+        missing.join(" ")
+    );
+    println!(
+        "Windows code signing inputs present: {}",
+        WINDOWS_SIGNING_ENV.join(" ")
+    );
+    Ok(())
+}
+
+#[derive(Debug, Serialize)]
+struct TrustedSigningMetadata {
+    #[serde(rename = "Endpoint")]
+    endpoint: String,
+    #[serde(rename = "CodeSigningAccountName")]
+    code_signing_account_name: String,
+    #[serde(rename = "CertificateProfileName")]
+    certificate_profile_name: String,
+    #[serde(rename = "ExcludeCredentials")]
+    exclude_credentials: Vec<&'static str>,
+}
+
+fn windows_trusted_signing_metadata_path() -> PathBuf {
+    runner_temp().join("velopack-trusted-signing.json")
+}
+
+fn write_windows_signing_metadata_step() -> Result<()> {
+    validate_windows_signing_inputs_step()?;
+    let metadata = TrustedSigningMetadata {
+        endpoint: require_env("AZURE_ARTIFACT_SIGNING_ENDPOINT")?,
+        code_signing_account_name: require_env("AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME")?,
+        certificate_profile_name: require_env("AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME")?,
+        exclude_credentials: TRUSTED_SIGNING_EXCLUDED_CREDENTIALS.to_vec(),
+    };
+    let path = windows_trusted_signing_metadata_path();
+    write_json_pretty(&path, &metadata)?;
+    println!(
+        "Wrote Velopack Trusted Signing metadata to {} (never staged for upload).",
+        path.display()
+    );
+    append_github_env(&[(
+        VELOPACK_TRUSTED_SIGN_FILE_ENV,
+        path.to_string_lossy().as_ref(),
+    )])
+}
+
 fn resolve_windows_unpacked_dir_step() -> Result<()> {
     let build_channel = env::var("BUILD_CHANNEL").unwrap_or_else(|_| "stable".to_string());
     let arch = require_env("ARCH")?;
@@ -1817,6 +1895,8 @@ fn pack_and_validate_windows_velopack(
         config.output_dir.to_string_lossy().as_ref(),
         "--delta",
         "None",
+        "--signExclude",
+        "*"
     ]))?;
     remove_velopack_portable_archives(&config.output_dir)
 }

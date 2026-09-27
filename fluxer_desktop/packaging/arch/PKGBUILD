@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 _channel="${FLUXER_CHANNEL:-stable}"
 if [[ $_channel == canary ]]; then
-	pkgname=fluxer-canary
-	_appname='Fluxer Canary'
-	_comment='Canary build of Fluxer'
+	pkgname=yipyap-canary
+	_appname='YipYap Canary'
+	_comment='Canary build of YipYap'
 else
-	pkgname=fluxer
-	_appname='Fluxer'
-	_comment='Instant messaging and VoIP'
+	pkgname=yipyap
+	_appname='YipYap'
+	_comment='Sizey messaging and VoIP'
 fi
 pkgver="${FLUXER_VERSION:?FLUXER_VERSION must be set}"
 pkgrel=1

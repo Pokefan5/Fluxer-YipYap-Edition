@@ -1,5 +1,6 @@
 /.velopack/
 /dist-electron/
+/tools/
 
 /native/**/*.node
 /native/webauthn/*.so*
@@ -9,3 +10,5 @@
 /native/win-game-capture/fluxer-vulkan-layer.*.json
 
 /src/common/BuildChannel.ts
+
+/build_resources/icons-stable - Old/
