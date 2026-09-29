@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-pub use crate::api::generated::types::VoiceNoiseSuppressionBackendSchema as NoiseSuppressionBackend;
+use super::{InstanceBillingResponse, InstanceBillingUpdateRequest};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct InstanceConfigResponse {
@@ -21,13 +21,17 @@ pub struct InstanceConfigResponse {
     #[serde(default)]
     pub media: InstanceMediaResponse,
     #[serde(default)]
-    pub voice_noise_suppression: VoiceNoiseSuppressionConfigResponse,
-    #[serde(default)]
-    pub push_service_delivery: PushServiceDeliveryConfigResponse,
+    pub push_relay: PushRelayConfigResponse,
     #[serde(default)]
     pub domain_migration: DomainMigrationConfigResponse,
     #[serde(default)]
+    pub altcha_captcha: AltchaCaptchaConfigResponse,
+    #[serde(default)]
+    pub profile_timezone: ProfileTimezoneConfigResponse,
+    #[serde(default)]
     pub experiment_delivery: ExperimentDeliveryConfigResponse,
+    #[serde(default)]
+    pub billing: InstanceBillingResponse,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -332,6 +336,9 @@ pub struct AppBrandingConfigResponse {
     pub theme_color: Option<String>,
     pub status_page_url: Option<String>,
     pub status_page_incident_history_url: Option<String>,
+    #[serde(default = "default_premium_product_name")]
+    pub premium_product_name: String,
+    pub premium_info_url: Option<String>,
 }
 
 impl Default for AppBrandingConfigResponse {
@@ -346,12 +353,18 @@ impl Default for AppBrandingConfigResponse {
             theme_color: None,
             status_page_url: None,
             status_page_incident_history_url: None,
+            premium_product_name: default_premium_product_name(),
+            premium_info_url: None,
         }
     }
 }
 
 fn default_product_name() -> String {
     "Fluxer".to_owned()
+}
+
+fn default_premium_product_name() -> String {
+    "Premium".to_owned()
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -451,134 +464,24 @@ impl VoiceE2eeScope {
 }
 
 pub const EXPERIMENT_MAX_TARGETED_USERS: usize = 1_000;
-pub const PUSH_SERVICE_DELIVERY_DEFAULT_SALT: &str = "push-service-delivery-v1";
 pub const DOMAIN_MIGRATION_DEFAULT_SALT: &str = "domain-migration-v1";
-pub const VOICE_NS_MAX_GUILD_OVERRIDES: usize = 200;
+pub const ALTCHA_CAPTCHA_DEFAULT_SALT: &str = "altcha-captcha-v1";
+pub const ALTCHA_CAPTCHA_COST_RANGE: std::ops::RangeInclusive<u32> = 1_000..=100_000;
+pub const ALTCHA_CAPTCHA_MAX_COUNTER_RANGE: std::ops::RangeInclusive<u32> = 100..=1_000_000;
+pub const PROFILE_TIMEZONE_DEFAULT_SALT: &str = "profile-timezone-v1";
 
-impl NoiseSuppressionBackend {
-    pub const ALL: [Self; 7] = [
-        Self::None,
-        Self::Standard,
-        Self::Gate,
-        Self::Speex,
-        Self::Rnnoise,
-        Self::Gtcrn,
-        Self::DeepFilter,
-    ];
-
-    pub fn label(&self) -> &'static str {
-        match self {
-            Self::None => "None (pass-through)",
-            Self::Standard => "Standard (WebRTC)",
-            Self::Gate => "Noise gate",
-            Self::Speex => "Speex",
-            Self::Rnnoise => "RNNoise",
-            Self::Gtcrn => "GTCRN",
-            Self::DeepFilter => "DeepFilterNet",
-        }
-    }
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct VoiceNoiseSuppressionGuildOverride {
-    pub guild_id: String,
-    pub backend: NoiseSuppressionBackend,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
-pub struct VoiceNoiseSuppressionConfigResponse {
-    pub enabled: bool,
-    pub config_version: u64,
-    pub default_backend: NoiseSuppressionBackend,
-    pub enabled_backends: Vec<NoiseSuppressionBackend>,
-    pub allow_user_override: bool,
-    pub rollout_basis_points: u32,
-    pub rollout_salt: String,
-    pub included_user_ids: Vec<String>,
-    pub excluded_user_ids: Vec<String>,
-    pub guild_overrides: Vec<VoiceNoiseSuppressionGuildOverride>,
-    pub suppression_strength: u32,
-}
-
-impl Default for VoiceNoiseSuppressionConfigResponse {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            config_version: 0,
-            default_backend: NoiseSuppressionBackend::Standard,
-            enabled_backends: NoiseSuppressionBackend::ALL.to_vec(),
-            allow_user_override: true,
-            rollout_basis_points: 0,
-            rollout_salt: "voice-ns-v1".to_owned(),
-            included_user_ids: Vec::new(),
-            excluded_user_ids: Vec::new(),
-            guild_overrides: Vec::new(),
-            suppression_strength: 80,
-        }
-    }
+pub struct PushRelayConfigResponse {
+    pub relay_consent_accepted: bool,
+    pub relay_consent_accepted_at: Option<String>,
+    pub relay_consent_accepted_by: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Serialize)]
-pub struct VoiceNoiseSuppressionConfigUpdateRequest {
+pub struct PushRelayConfigUpdateRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub enabled: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub default_backend: Option<NoiseSuppressionBackend>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub enabled_backends: Option<Vec<NoiseSuppressionBackend>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub allow_user_override: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub rollout_basis_points: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub rollout_salt: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub included_user_ids: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub excluded_user_ids: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub guild_overrides: Option<Vec<VoiceNoiseSuppressionGuildOverride>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub suppression_strength: Option<u32>,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(default)]
-pub struct PushServiceDeliveryConfigResponse {
-    pub enabled: bool,
-    pub config_version: u64,
-    pub rollout_basis_points: u32,
-    pub rollout_salt: String,
-    pub included_user_ids: Vec<String>,
-    pub excluded_user_ids: Vec<String>,
-}
-
-impl Default for PushServiceDeliveryConfigResponse {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            config_version: 0,
-            rollout_basis_points: 0,
-            rollout_salt: PUSH_SERVICE_DELIVERY_DEFAULT_SALT.to_owned(),
-            included_user_ids: Vec::new(),
-            excluded_user_ids: Vec::new(),
-        }
-    }
-}
-
-#[derive(Clone, Debug, Default, Serialize)]
-pub struct PushServiceDeliveryConfigUpdateRequest {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub enabled: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub rollout_basis_points: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub rollout_salt: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub included_user_ids: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub excluded_user_ids: Option<Vec<String>>,
+    pub relay_consent_accepted: Option<bool>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -589,6 +492,8 @@ pub struct DomainMigrationConfigResponse {
     pub rollout_basis_points: u32,
     pub rollout_salt: String,
     pub included_user_ids: Vec<String>,
+    pub included_guild_ids: Vec<String>,
+    pub include_premium_users: bool,
     pub excluded_user_ids: Vec<String>,
     pub anonymous_rollout_basis_points: u32,
     pub standalone_forwarding: bool,
@@ -602,6 +507,8 @@ impl Default for DomainMigrationConfigResponse {
             rollout_basis_points: 0,
             rollout_salt: DOMAIN_MIGRATION_DEFAULT_SALT.to_owned(),
             included_user_ids: Vec::new(),
+            included_guild_ids: Vec::new(),
+            include_premium_users: false,
             excluded_user_ids: Vec::new(),
             anonymous_rollout_basis_points: 0,
             standalone_forwarding: false,
@@ -620,11 +527,119 @@ pub struct DomainMigrationConfigUpdateRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub included_user_ids: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub included_guild_ids: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub include_premium_users: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub excluded_user_ids: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub anonymous_rollout_basis_points: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub standalone_forwarding: Option<bool>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(default)]
+pub struct AltchaCaptchaConfigResponse {
+    pub enabled: bool,
+    pub config_version: u64,
+    pub rollout_basis_points: u32,
+    pub rollout_salt: String,
+    pub included_user_ids: Vec<String>,
+    pub included_guild_ids: Vec<String>,
+    pub include_premium_users: bool,
+    pub excluded_user_ids: Vec<String>,
+    pub anonymous_enabled: bool,
+    pub cost: u32,
+    pub max_counter: u32,
+}
+
+impl Default for AltchaCaptchaConfigResponse {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            config_version: 0,
+            rollout_basis_points: 0,
+            rollout_salt: ALTCHA_CAPTCHA_DEFAULT_SALT.to_owned(),
+            included_user_ids: Vec::new(),
+            included_guild_ids: Vec::new(),
+            include_premium_users: false,
+            excluded_user_ids: Vec::new(),
+            anonymous_enabled: false,
+            cost: 5_000,
+            max_counter: 10_000,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, Serialize)]
+pub struct AltchaCaptchaConfigUpdateRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rollout_basis_points: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rollout_salt: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub included_user_ids: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub included_guild_ids: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub include_premium_users: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub excluded_user_ids: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub anonymous_enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cost: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_counter: Option<u32>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(default)]
+pub struct ProfileTimezoneConfigResponse {
+    pub enabled: bool,
+    pub config_version: u64,
+    pub rollout_basis_points: u32,
+    pub rollout_salt: String,
+    pub included_user_ids: Vec<String>,
+    pub included_guild_ids: Vec<String>,
+    pub include_premium_users: bool,
+    pub excluded_user_ids: Vec<String>,
+}
+
+impl Default for ProfileTimezoneConfigResponse {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            config_version: 0,
+            rollout_basis_points: 0,
+            rollout_salt: PROFILE_TIMEZONE_DEFAULT_SALT.to_owned(),
+            included_user_ids: Vec::new(),
+            included_guild_ids: Vec::new(),
+            include_premium_users: false,
+            excluded_user_ids: Vec::new(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, Serialize)]
+pub struct ProfileTimezoneConfigUpdateRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rollout_basis_points: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rollout_salt: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub included_user_ids: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub included_guild_ids: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub include_premium_users: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub excluded_user_ids: Option<Vec<String>>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -741,13 +756,17 @@ pub struct InstanceConfigUpdateRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub media: Option<InstanceMediaUpdateRequest>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub voice_noise_suppression: Option<VoiceNoiseSuppressionConfigUpdateRequest>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub push_service_delivery: Option<PushServiceDeliveryConfigUpdateRequest>,
+    pub push_relay: Option<PushRelayConfigUpdateRequest>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub domain_migration: Option<DomainMigrationConfigUpdateRequest>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub altcha_captcha: Option<AltchaCaptchaConfigUpdateRequest>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile_timezone: Option<ProfileTimezoneConfigUpdateRequest>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub experiment_delivery: Option<ExperimentDeliveryConfigUpdateRequest>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub billing: Option<InstanceBillingUpdateRequest>,
 }
 
 #[derive(Clone, Debug, Default, Serialize)]
@@ -956,6 +975,10 @@ pub struct AppBrandingConfigUpdateRequest {
     pub status_page_url: Option<Option<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status_page_incident_history_url: Option<Option<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub premium_product_name: Option<Option<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub premium_info_url: Option<Option<String>>,
 }
 
 #[derive(Clone, Debug, Default, Serialize)]
@@ -1061,52 +1084,50 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn noise_suppression_backend_choices_use_the_generated_wire_contract() {
-        assert_eq!(
-            serde_json::to_value(NoiseSuppressionBackend::ALL).expect("serializable backends"),
-            json!([
-                "none",
-                "standard",
-                "gate",
-                "speex",
-                "rnnoise",
-                "gtcrn",
-                "deep_filter"
-            ])
-        );
-        assert!(serde_json::from_value::<NoiseSuppressionBackend>(json!("deepfilter")).is_err());
-    }
-
-    #[test]
     fn default_instance_experiment_config_matches_the_published_contract() {
         let schema: serde_json::Value =
             serde_json::from_str(include_str!("../../../openapi-admin.json"))
                 .expect("admin schema");
-        let noise = serde_json::from_value::<VoiceNoiseSuppressionConfigResponse>(json!({}))
-            .expect("default noise config");
         let domain_migration = serde_json::from_value::<DomainMigrationConfigResponse>(json!({}))
             .expect("default domain migration config");
+        let altcha_captcha = serde_json::from_value::<AltchaCaptchaConfigResponse>(json!({}))
+            .expect("default altcha captcha config");
+        let profile_timezone = serde_json::from_value::<ProfileTimezoneConfigResponse>(json!({}))
+            .expect("default profile timezone config");
         let delivery = serde_json::from_value::<ExperimentDeliveryConfigResponse>(json!({}))
             .expect("default delivery config");
-        let noise = serde_json::to_value(noise).expect("serializable noise config");
         let domain_migration =
             serde_json::to_value(domain_migration).expect("serializable domain migration config");
+        let altcha_captcha =
+            serde_json::to_value(altcha_captcha).expect("serializable altcha captcha config");
+        let profile_timezone =
+            serde_json::to_value(profile_timezone).expect("serializable profile timezone config");
         let delivery = serde_json::to_value(delivery).expect("serializable delivery config");
-        let generated_noise: generated_types::VoiceNoiseSuppressionConfigResponse =
-            serde_json::from_value(noise.clone()).expect("generated noise config contract");
         let generated_domain_migration: generated_types::DomainMigrationConfigResponse =
             serde_json::from_value(domain_migration.clone())
                 .expect("generated domain migration config contract");
+        let generated_altcha_captcha: generated_types::AltchaCaptchaConfigResponse =
+            serde_json::from_value(altcha_captcha.clone())
+                .expect("generated altcha captcha config contract");
+        let generated_profile_timezone: generated_types::ProfileTimezoneConfigResponse =
+            serde_json::from_value(profile_timezone.clone())
+                .expect("generated profile timezone config contract");
         let generated_delivery: generated_types::ExperimentDeliveryConfigResponse =
             serde_json::from_value(delivery.clone()).expect("generated delivery config contract");
-        assert_eq!(
-            serde_json::to_value(generated_noise).expect("serializable generated noise config"),
-            noise
-        );
         assert_eq!(
             serde_json::to_value(generated_domain_migration)
                 .expect("serializable generated domain migration config"),
             domain_migration
+        );
+        assert_eq!(
+            serde_json::to_value(generated_altcha_captcha)
+                .expect("serializable generated altcha captcha config"),
+            altcha_captcha
+        );
+        assert_eq!(
+            serde_json::to_value(generated_profile_timezone)
+                .expect("serializable generated profile timezone config"),
+            profile_timezone
         );
         assert_eq!(
             serde_json::to_value(generated_delivery)
@@ -1114,8 +1135,9 @@ mod tests {
             delivery
         );
         for (name, value) in [
-            ("VoiceNoiseSuppressionConfigResponse", noise),
             ("DomainMigrationConfigResponse", domain_migration),
+            ("AltchaCaptchaConfigResponse", altcha_captcha),
+            ("ProfileTimezoneConfigResponse", profile_timezone),
             ("ExperimentDeliveryConfigResponse", delivery),
         ] {
             for (field, value) in value.as_object().expect("config object") {
@@ -1125,31 +1147,6 @@ mod tests {
                 );
             }
         }
-    }
-
-    #[test]
-    fn noise_suppression_update_preserves_empty_lists_and_omitted_fields() {
-        let update = VoiceNoiseSuppressionConfigUpdateRequest {
-            enabled_backends: Some(Vec::new()),
-            included_user_ids: Some(Vec::new()),
-            excluded_user_ids: Some(Vec::new()),
-            guild_overrides: Some(Vec::new()),
-            ..Default::default()
-        };
-        let value = serde_json::to_value(update).expect("serializable update");
-        serde_json::from_value::<generated_types::VoiceNoiseSuppressionConfigUpdateRequest>(
-            value.clone(),
-        )
-        .expect("generated update contract");
-        assert_eq!(
-            value,
-            json!({"enabled_backends": [], "included_user_ids": [], "excluded_user_ids": [], "guild_overrides": []})
-        );
-        assert_eq!(
-            serde_json::to_value(VoiceNoiseSuppressionConfigUpdateRequest::default())
-                .expect("serializable update"),
-            json!({})
-        );
     }
 
     #[test]

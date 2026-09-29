@@ -1420,6 +1420,12 @@
         "msgid": "About me is too long"
       },
       {
+        "msgid": "Accept the push relay supplemental privacy notice"
+      },
+      {
+        "msgid": "Accepted"
+      },
+      {
         "msgid": "Add a Klipy API key to enable GIF search at runtime."
       },
       {
@@ -1582,6 +1588,24 @@
         "msgid": "Built-in suppression from your browser or system."
       },
       {
+        "msgid": "By purchasing, you agree to our <0>Privacy policy</0>."
+      },
+      {
+        "msgid": "By purchasing, you agree to our <0>Terms of service</0>."
+      },
+      {
+        "msgid": "By purchasing, you agree to our {legalDocument}."
+      },
+      {
+        "msgid": "By purchasing, you agreed to our <0>Privacy policy</0>."
+      },
+      {
+        "msgid": "By purchasing, you agreed to our <0>Terms of service</0>."
+      },
+      {
+        "msgid": "By purchasing, you agreed to our {legalDocument}."
+      },
+      {
         "msgid": "Camera access is needed for device previews"
       },
       {
@@ -1718,6 +1742,12 @@
       },
       {
         "msgid": "Changed the voice region from {oldRegion} to {newRegion}."
+      },
+      {
+        "msgid": "Checking your browser. This takes a few seconds."
+      },
+      {
+        "msgid": "Checkout is blocked for this account."
       },
       {
         "msgid": "Choices"
@@ -2020,6 +2050,9 @@
         "msgid": "HEVC"
       },
       {
+        "msgid": "Have a gift code? Redeem it to unlock {PREMIUM_PRODUCT_NAME}."
+      },
+      {
         "msgid": "Help translate {PRODUCT_NAME} into your language on <0>{I18N_WEBLATE_DOMAIN}</0>."
       },
       {
@@ -2236,6 +2269,9 @@
         "msgid": "No part of {query} could be applied. Fix the underlined value or add something to search for."
       },
       {
+        "msgid": "Not accepted"
+      },
+      {
         "msgid": "Nothing to search for"
       },
       {
@@ -2380,10 +2416,19 @@
         "msgid": "Public registration is closed."
       },
       {
+        "msgid": "Purchases are disabled for this account."
+      },
+      {
+        "msgid": "Push relay notice"
+      },
+      {
         "msgid": "Read messages sent before they opened a channel. Without it, they only see messages that arrive while it is open."
       },
       {
         "msgid": "Read messages sent in this channel before they opened it. Without it, they only see messages that arrive while it is open."
+      },
+      {
+        "msgid": "Read the supplemental privacy notice"
       },
       {
         "msgid": "Reason (optional)."
@@ -3058,6 +3103,9 @@
         "msgid": "The new price is already scheduled for {effectiveDate}."
       },
       {
+        "msgid": "The official Fluxer mobile apps receive notifications through Fluxer's push relay, which hands them to Apple and Google. Self-hosted UnifiedPush and ntfy endpoints never reach the relay and need no agreement."
+      },
+      {
         "msgid": "The override allowed {permissions}."
       },
       {
@@ -3328,6 +3376,9 @@
         "msgid": "Your account works normally again straight away and nothing is removed. We can ask for this check again later."
       },
       {
+        "msgid": "Your browser couldn't finish the check."
+      },
+      {
         "msgid": "Your capture device is sending {deliveredResolution} instead of {resolution}."
       },
       {
@@ -3407,6 +3458,9 @@
       },
       {
         "msgid": "online"
+      },
+      {
+        "msgid": "{PAYMENT_PROVIDER_NAME} handles payment securely."
       },
       {
         "msgid": "{PRODUCT_NAME} needs to restart for the title bar change to take effect."
@@ -3869,6 +3923,9 @@
       },
       {
         "msgid": "{actor} updated {target}."
+      },
+      {
+        "msgid": "{appName} can't reach its servers. It will keep trying in the background."
       },
       {
         "msgid": "{channelHeading}, {mentionCount, plural, one {# mention} other {# mentions}}"

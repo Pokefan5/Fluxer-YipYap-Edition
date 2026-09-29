@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import {AltchaCaptchaAssignmentResponse} from '@fluxer/schema/src/domains/admin/AltchaCaptchaSchemas';
 import {
 	DomainMigrationAssignmentResponse,
 	INERT_DOMAIN_MIGRATION_ASSIGNMENT,
 } from '@fluxer/schema/src/domains/admin/DomainMigrationSchemas';
 import {
-	INERT_VOICE_NOISE_SUPPRESSION_ASSIGNMENT,
-	VoiceNoiseSuppressionAssignmentResponse,
-} from '@fluxer/schema/src/domains/admin/VoiceNoiseSuppressionSchemas';
+	INERT_PROFILE_TIMEZONE_ASSIGNMENT,
+	ProfileTimezoneAssignmentResponse,
+} from '@fluxer/schema/src/domains/admin/ProfileTimezoneSchemas';
 import {z} from 'zod';
 
 export const EXPERIMENT_MIN_POLL_INTERVAL_SECONDS = 60;
@@ -45,8 +46,9 @@ export const ExperimentDeliveryConfigResponse = ExperimentDeliveryConfigSchema;
 export type ExperimentDeliveryConfigResponse = z.infer<typeof ExperimentDeliveryConfigResponse>;
 
 const ExperimentAssignmentsSchema = z.object({
-	voice_noise_suppression: VoiceNoiseSuppressionAssignmentResponse.optional(),
 	domain_migration: DomainMigrationAssignmentResponse.optional(),
+	altcha_captcha: AltchaCaptchaAssignmentResponse.optional(),
+	profile_timezone: ProfileTimezoneAssignmentResponse.optional(),
 });
 
 export const ExperimentAssignmentsResponse = z.object({
@@ -63,14 +65,14 @@ export const INERT_EXPERIMENT_ASSIGNMENTS_RESPONSE: ExperimentAssignmentsRespons
 	assignments: {},
 };
 
-export function readVoiceNoiseSuppressionAssignment(
-	response: ExperimentAssignmentsResponse,
-): VoiceNoiseSuppressionAssignmentResponse {
-	return response.assignments.voice_noise_suppression ?? INERT_VOICE_NOISE_SUPPRESSION_ASSIGNMENT;
-}
-
 export function readDomainMigrationAssignment(
 	response: ExperimentAssignmentsResponse,
 ): DomainMigrationAssignmentResponse {
 	return response.assignments.domain_migration ?? INERT_DOMAIN_MIGRATION_ASSIGNMENT;
+}
+
+export function readProfileTimezoneAssignment(
+	response: ExperimentAssignmentsResponse,
+): ProfileTimezoneAssignmentResponse {
+	return response.assignments.profile_timezone ?? INERT_PROFILE_TIMEZONE_ASSIGNMENT;
 }
