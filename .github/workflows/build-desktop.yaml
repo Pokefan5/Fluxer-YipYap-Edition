@@ -509,8 +509,8 @@ jobs:
           name: ${{ steps.handoff.outputs.artifact_name }}
           path: upload_staging
           if-no-files-found: error
-          retention-days: 1
-          compression-level: 0
+          retention-days: 30
+          compression-level: 6
 
   # upload:
   #   name: Assemble desktop release assets
