@@ -125,7 +125,7 @@ const PLATFORMS: &[Platform] = &[
     Platform {
         platform: "windows",
         arch: "x64",
-        os: "yipyap-windows-runner",
+        os: "windows-2025",
         electron_arch: "x64",
     },
     Platform {
