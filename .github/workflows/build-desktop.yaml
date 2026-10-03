@@ -63,8 +63,8 @@ jobs:
         with:
           client-id: ${{ vars.FLUXER_CI_APP_ID }}
           private-key: ${{ secrets.FLUXER_CI_APP_KEY }}
-          owner: fluxerapp
-          repositories: fluxer
+          owner: Pokefan5
+          repositories: Fluxer-YipYap-Edition
           permission-contents: read
       - name: Set metadata
         id: meta
@@ -615,8 +615,8 @@ jobs:
         with:
           client-id: ${{ vars.FLUXER_CI_APP_ID }}
           private-key: ${{ secrets.FLUXER_CI_APP_KEY }}
-          owner: fluxerapp
-          repositories: fluxer
+          owner: Pokefan5
+          repositories: Fluxer-YipYap-Edition
           permission-contents: write
       - name: Publish GitHub desktop release
         env:
