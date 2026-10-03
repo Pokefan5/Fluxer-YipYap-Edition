@@ -62,6 +62,8 @@ const ALLOWED_WEB_UPDATE_HOSTS = new Set([
 	'web.canary.fluxer.app',
 	'fluxer.com',
 	'canary.fluxer.com',
+	'yipyap.sizestation.com',
+	'github.com'
 ]);
 
 async function dropCachedAppShell(): Promise<void> {

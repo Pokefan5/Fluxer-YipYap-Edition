@@ -512,6 +512,11 @@ jobs:
           retention-days: 30
           compression-level: 6
 
+      - name: Clean up Windows shortened path
+        if: runner.os == 'Windows'
+        run: >-
+          subst W: /d
+
   upload:
     name: Assemble desktop release assets
     if: ${{ !cancelled() && needs.build.result == 'success' }}
