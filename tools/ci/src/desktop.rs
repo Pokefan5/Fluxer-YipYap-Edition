@@ -2276,7 +2276,7 @@ fn prepare_release_assets_step() -> Result<()> {
         schema_version: DESKTOP_RELEASE_DESCRIPTOR_SCHEMA_VERSION,
         channel: channel.clone(),
         version: version.clone(),
-        release_tag: format!("fluxer-desktop-{channel}@{version}"),
+        release_tag: format!("yipyap-desktop-{channel}@{version}"),
         source_sha,
         assets: descriptor_assets,
     };
