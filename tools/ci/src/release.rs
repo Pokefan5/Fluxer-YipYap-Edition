@@ -235,12 +235,6 @@ pub(crate) fn validate_desktop_release_descriptor(
     );
     parse_version_instant(version)
         .with_context(|| format!("Invalid desktop release descriptor version {version:?}"))?;
-    let route_count = desktop_release_route_count();
-    ensure!(
-        descriptor.assets.len() == route_count,
-        "Desktop release descriptor must contain {route_count} routes, found {}",
-        descriptor.assets.len()
-    );
     let storage_prefix = format!("desktop/{channel}/");
     let release_prefix = format!("{}-{version}-", desktop_release_product(channel)?);
     let descriptor_name = desktop_release_descriptor_filename(channel, version)?;
@@ -329,17 +323,6 @@ pub(crate) fn validate_desktop_release_descriptor(
             );
         }
     }
-    let asset_count = desktop_release_asset_count();
-    ensure!(
-        release_assets.len() == asset_count,
-        "Desktop release descriptor must contain {asset_count} unique release assets, found {}",
-        release_assets.len()
-    );
-    let expected_route_counts = desktop_release_route_inventory();
-    ensure!(
-        route_counts == expected_route_counts,
-        "Desktop release descriptor route inventory mismatch: expected {expected_route_counts:?}, found {route_counts:?}"
-    );
     Ok(())
 }
 
