@@ -805,10 +805,10 @@ function registerManualUpdater(
 }
 
 export function registerUpdater(getMainWindow: () => BrowserWindow | null) {
-	// if (!app.isPackaged) {
-	// 	registerManualUpdater(getMainWindow, 'unpackaged');
-	// 	return;
-	// }
+	if (!app.isPackaged) {
+		registerManualUpdater(getMainWindow, 'unpackaged');
+		return;
+	}
 	if (isPortableMode()) {
 		registerManualUpdater(getMainWindow, 'platform');
 		return;

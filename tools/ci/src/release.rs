@@ -190,9 +190,15 @@ pub(crate) fn desktop_release_asset_name(
         return Ok(storage_filename.to_string());
     }
     let release_filename = desktop_release_asset_basename(platform, storage_filename);
-    Ok(format!(
-        "{release_prefix}{platform_token}-{arch}-{release_filename}"
-    ))
+    if release_filename.eq("releases.win.json") {
+        Ok(format!(
+            "{release_filename}"
+        ))
+    } else {        
+        Ok(format!(
+            "{release_prefix}{platform_token}-{arch}-{release_filename}"
+        ))
+    }
 }
 
 pub(crate) fn validate_desktop_release_descriptor(
@@ -277,12 +283,13 @@ pub(crate) fn validate_desktop_release_descriptor(
             key_segments[4],
         )?;
         ensure!(
-            asset.release_asset.starts_with(&release_prefix)
+            (asset.release_asset.starts_with(&release_prefix)
                 && asset.release_asset != descriptor_name
                 && asset.release_asset == expected_release_asset
                 && asset.release_asset.bytes().all(|byte| {
                     byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_')
-                }),
+                }))
+                || asset.release_asset.eq("releases.win.json"),
             "Desktop release descriptor contains invalid release asset {:?}",
             asset.release_asset
         );
