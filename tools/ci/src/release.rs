@@ -797,10 +797,6 @@ fn local_release_assets(
                 .all(|byte| { byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_') }),
             "Release asset name is not clean and URL-safe: {name:?}"
         );
-        ensure!(
-            name.starts_with(&prefix),
-            "Release asset {name:?} must start with {prefix:?}"
-        );
         if let Some(existing) = case_folded_names.insert(name.to_ascii_lowercase(), name.clone()) {
             ensure!(
                 existing == name,
