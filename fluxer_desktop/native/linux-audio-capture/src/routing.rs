@@ -404,8 +404,8 @@ mod tests {
         let mut identity = SelfIdentity::default();
         identity.add_pid("4242");
         identity.add_binary("fluxer");
-        identity.add_display_name("Fluxer Canary");
-        identity.add_display_prefix("Fluxer ");
+        identity.add_display_name("YipYap Canary");
+        identity.add_display_prefix("YipYap ");
 
         let rule = RoutingRule {
             include_when: vec![make_map(&[("application.process.id", "4242")])],
@@ -638,15 +638,15 @@ mod tests {
         let mut identity = SelfIdentity::default();
         identity.add_pid("1234");
         identity.add_binary("fluxer");
-        identity.add_display_name("Fluxer Canary");
-        identity.add_display_prefix("Fluxer ");
+        identity.add_display_name("YipYap Canary");
+        identity.add_display_prefix("YipYap ");
 
         let by_pid = make_map(&[("application.process.id", "1234")]);
         let by_sec_pid = make_map(&[("pipewire.sec.pid", "1234")]);
         let by_binary = make_map(&[("application.process.binary", "fluxer")]);
         let by_app_name = make_map(&[("application.name", "fluxer")]);
         let by_node_name = make_map(&[("node.name", "fluxer")]);
-        let by_node_nick = make_map(&[("node.nick", "Fluxer Canary")]);
+        let by_node_nick = make_map(&[("node.nick", "YipYap Canary")]);
         let by_node_description = make_map(&[("node.description", "Fluxer app audio capture")]);
         let stranger = make_map(&[("application.process.id", "9999")]);
 
