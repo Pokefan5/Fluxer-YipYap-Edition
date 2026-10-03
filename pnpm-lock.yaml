@@ -1762,8 +1762,8 @@ importers:
         specifier: 3.3.0
         version: 3.3.0
       velopack:
-        specifier: 1.2.0
-        version: 1.2.0
+        specifier: 1.2.161
+        version: 1.2.161
     devDependencies:
       '@types/node':
         specifier: 24.13.5
@@ -8305,6 +8305,7 @@ packages:
   idna-uts46-hx@6.2.1:
     resolution: {integrity: sha512-ywCsEJObClsvgOeiUaV70O4sGZvwX+w2Svr1I+KECCtPelsuANcLK4Y1n+TZ3KNAlnQYMF6Te8rTZ2xbIuK8WQ==}
     engines: {node: ^24.15.0 || ^26.0.0, npm: '>=12.0.0'}
+    deprecated: contains no types file, upgrade to 6.2.2
     hasBin: true
 
   ieee754@1.2.1:
@@ -10786,8 +10787,8 @@ packages:
     resolution: {integrity: sha512-TQ5pAGhd5whStmqWvYF4OjQROlmv9SMFVt37qoCBdqRffuuklWYQlCNnEs2ZaIBD1kZRNnikiZOS1eqgkar0iw==}
     engines: {node: '>= 0.10'}
 
-  velopack@1.2.0:
-    resolution: {integrity: sha512-rWX8G9h5gv2AgrjiADhvyrrv7LpCCcFeepw+jBx80/jm1FIXW7BgmSEQtJVXt3jqC2YnCKiBD6E1i/DBWnpIyw==}
+  velopack@1.2.161:
+    resolution: {integrity: sha512-N6wK4Z43MF1CBaq1X0Y2w6OTqO4CmVQIZ4Q7/nb8aJAGY31dIopAIh0HiV/SlfBYJ46cdcS+UUnHOWi0DXgHcg==}
     engines: {node: '>=20.0.0 <26.0.0'}
 
   vfile-location@5.0.3:
@@ -15481,7 +15482,7 @@ snapshots:
 
   '@types/set-cookie-parser@2.4.10':
     dependencies:
-      '@types/node': 26.6.1
+      '@types/node': 24.13.5
 
   '@types/statuses@2.0.6': {}
 
@@ -15497,7 +15498,7 @@ snapshots:
 
   '@types/ws@8.18.1':
     dependencies:
-      '@types/node': 26.6.1
+      '@types/node': 24.13.5
 
   '@types/yargs-parser@21.0.3': {}
 
@@ -16172,7 +16173,7 @@ snapshots:
 
   buffer-image-size@0.6.4:
     dependencies:
-      '@types/node': 26.6.1
+      '@types/node': 24.13.5
 
   buffer@5.6.0:
     dependencies:
@@ -17199,7 +17200,7 @@ snapshots:
 
   happy-dom@20.14.5:
     dependencies:
-      '@types/node': 26.6.1
+      '@types/node': 24.13.5
       '@types/whatwg-mimetype': 3.0.2
       '@types/ws': 8.18.1
       buffer-image-size: 0.6.4
@@ -20369,7 +20370,7 @@ snapshots:
 
   validator@13.15.35: {}
 
-  velopack@1.2.0:
+  velopack@1.2.161:
     dependencies:
       '@neon-rs/load': 0.2.6
 

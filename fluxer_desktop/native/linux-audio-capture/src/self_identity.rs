@@ -6,7 +6,7 @@ use std::path::Path;
 
 use crate::routing::SelfIdentity;
 
-const PRODUCT_DISPLAY_NAMES: &[&str] = &["Fluxer", "Fluxer Canary"];
+const PRODUCT_DISPLAY_NAMES: &[&str] = &["YipYap", "YipYap Canary"];
 const PRODUCT_DISPLAY_PREFIXES: &[&str] = &[
     "Fluxer ", "fluxer ", "Fluxer-", "fluxer-", "Fluxer_", "fluxer_", "Fluxer.", "fluxer.",
 ];

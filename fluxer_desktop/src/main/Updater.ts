@@ -33,6 +33,7 @@ import {
 	type ManualLatestFile,
 	type ManualLatestInfo,
 	UPDATE_BASE_URL,
+	UPDATE_GITHUB_URL,
 	type UpdaterDownloadOption,
 } from '@electron/main/UpdaterDownloads';
 import {setQuitting} from '@electron/main/Window';
@@ -151,8 +152,8 @@ function getVelopackUpdateSize(update: VelopackUpdate): number | null {
 }
 
 function createVelopackUpdateManager() {
-	const {UpdateManager} = requireModule('velopack') as typeof import('velopack');
-	return new UpdateManager(UPDATE_BASE_URL);
+	const {UpdateManager, GithubSource} = requireModule('velopack') as typeof import('velopack');
+	return new UpdateManager(new GithubSource(UPDATE_GITHUB_URL, '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', false));
 }
 
 type VelopackUpdateManager = ReturnType<typeof createVelopackUpdateManager>;
@@ -403,8 +404,8 @@ function registerElectronUpdater(getMainWindow: () => BrowserWindow | null): voi
 	) as typeof import('update-electron-app');
 	updateElectronApp({
 		updateSource: {
-			type: UpdateSourceType.StaticStorage,
-			baseUrl: UPDATE_BASE_URL,
+			type: UpdateSourceType.ElectronPublicUpdateService,
+			repo: 'Pokefan5/Fluxer-YipYap-Edition',
 		},
 		updateInterval: '12 hours',
 		logger: log,
