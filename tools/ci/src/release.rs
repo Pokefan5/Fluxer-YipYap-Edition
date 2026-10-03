@@ -155,8 +155,8 @@ pub(crate) struct DesktopReleaseDescriptor {
 
 pub(crate) fn desktop_release_product(channel: &str) -> Result<&'static str> {
     match channel {
-        "stable" => Ok("Fluxer"),
-        "canary" => Ok("Fluxer-Canary"),
+        "stable" => Ok("YipYap"),
+        "canary" => Ok("YipYap-Canary"),
         other => bail!("Unsupported desktop release channel {other:?}"),
     }
 }
@@ -217,7 +217,7 @@ pub(crate) fn validate_desktop_release_descriptor(
         descriptor.version
     );
     ensure!(
-        descriptor.release_tag == format!("fluxer-desktop-{channel}@{version}"),
+        descriptor.release_tag == format!("yipyap-desktop-{channel}@{version}"),
         "Desktop release descriptor tag {:?} is invalid",
         descriptor.release_tag
     );
@@ -1126,7 +1126,7 @@ fn release_body(previous_sha: &str, source_sha: &str) -> String {
 }
 
 fn desktop_channel(component: &str) -> Option<&str> {
-    component.strip_prefix("fluxer-desktop-")
+    component.strip_prefix("yipyap-desktop-")
 }
 
 #[cfg(test)]
@@ -1197,7 +1197,7 @@ mod tests {
             schema_version: DESKTOP_RELEASE_DESCRIPTOR_SCHEMA_VERSION,
             channel: SAMPLE_CHANNEL.to_string(),
             version: SAMPLE_VERSION.to_string(),
-            release_tag: format!("fluxer-desktop-{SAMPLE_CHANNEL}@{SAMPLE_VERSION}"),
+            release_tag: format!("yipyap-desktop-{SAMPLE_CHANNEL}@{SAMPLE_VERSION}"),
             source_sha: SAMPLE_SOURCE_SHA.to_string(),
             assets,
         }
@@ -1261,8 +1261,8 @@ mod tests {
             asset_for("darwin/x64/releases.json")
         );
         assert_eq!(
-            asset_for("darwin/x64/Fluxer-Canary-2026.913.210037-mac-universal.dmg"),
-            asset_for("darwin/arm64/Fluxer-Canary-2026.913.210037-mac-universal.dmg")
+            asset_for("darwin/x64/YipYap-Canary-2026.913.210037-mac-universal.dmg"),
+            asset_for("darwin/arm64/YipYap-Canary-2026.913.210037-mac-universal.dmg")
         );
         assert_ne!(
             asset_for("darwin/x64/RELEASES.json"),
@@ -1285,7 +1285,7 @@ mod tests {
         let mut descriptor = sample_descriptor();
         let extra = DesktopReleaseAsset {
             storage_key: format!("desktop/{SAMPLE_CHANNEL}/linux/x64/latest-linux.yml"),
-            release_asset: format!("Fluxer-Canary-{SAMPLE_VERSION}-linux-x64-latest-linux.yml"),
+            release_asset: format!("YipYap-Canary-{SAMPLE_VERSION}-linux-x64-latest-linux.yml"),
             sha256: format!("{:064x}", 99u64),
             size: 4096,
         };
