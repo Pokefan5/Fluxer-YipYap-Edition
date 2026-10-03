@@ -2434,8 +2434,12 @@ fn prepare_release_assets_step() -> Result<()> {
 
     let mut release_builder =
         DesktopReleaseAssetBuilder::new(&channel, &version, product, release_assets);
+
     for (platform, arch) in desktop_release_coordinates() {
         let dir = payload_root.join(platform).join(arch);
+        if !dir.is_dir() {
+            continue;
+        }
         ensure!(
             dir.is_dir(),
             "Desktop release payload directory is missing: {}",
