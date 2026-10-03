@@ -86,6 +86,7 @@ export class ChannelService {
 			gatewayService,
 			storageService,
 			purgeQueue,
+			workerService,
 		});
 		const messagePersistenceService = new MessagePersistenceService(
 			channelRepository,
@@ -119,6 +120,7 @@ export class ChannelService {
 			webhookRepository,
 			limitConfigService,
 			rateLimitService,
+			cacheService,
 		);
 		this.messages = new MessageService(
 			channelRepository,
@@ -170,6 +172,8 @@ export class ChannelService {
 			snowflakeService,
 			this.messages.persistence,
 			limitConfigService,
+			voiceRoomStore,
+			liveKitService,
 		);
 		this.calls = new CallService(
 			channelRepository,

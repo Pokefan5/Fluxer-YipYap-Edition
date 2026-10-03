@@ -20,6 +20,7 @@ import {
 	type InstanceSsoConfig,
 	REGISTRATION_PENDING_APPROVAL_TRAIT,
 } from '@app/api/instance/InstanceConfigRepository';
+import type {SingleCommunityService} from '@app/api/instance/SingleCommunityService';
 import {
 	deriveSsoRedirectUri,
 	getSsoRequestUrlPolicy,
@@ -28,6 +29,7 @@ import {
 } from '@app/api/instance/SsoConfigValidation';
 import {Logger} from '@app/api/Logger';
 import {profileSubstringBlocklistCache} from '@app/api/middleware/ProfileSubstringBlocklistCache';
+import type {RequestCache} from '@app/api/middleware/RequestCacheMiddleware';
 import type {User} from '@app/api/models/User';
 import {UserSettings} from '@app/api/models/UserSettings';
 import {EXTERNAL_RESPONSE_LIMITS} from '@app/api/utils/ExternalResponseLimits';
@@ -35,6 +37,7 @@ import * as FetchUtils from '@app/api/utils/FetchUtils';
 import {isJsonRecord, parseJsonRecord, parseJsonWithGuard} from '@app/api/utils/JsonBoundaryUtils';
 import {generateRandomUsername} from '@app/api/utils/UsernameGenerator';
 import {deriveUsernameFromDisplayName} from '@app/api/utils/UsernameSuggestionUtils';
+import {SSO_MOBILE_CALLBACK_URI, SSO_MOBILE_STATE_PREFIX} from '@fluxer/constants/src/SsoConstants';
 import {ProfileFieldPrivacyFlags} from '@fluxer/constants/src/UserConstants';
 import {ValidationErrorCodes} from '@fluxer/constants/src/ValidationErrorCodes';
 import {RegistrationClosedError} from '@fluxer/errors/src/domains/auth/RegistrationClosedError';
@@ -106,7 +109,6 @@ interface JwksCacheEntry {
 const CODE_VERIFIER_BYTE_LENGTH = 32;
 const STATE_BYTE_LENGTH = 16;
 const NONCE_BYTE_LENGTH = 16;
-const MOBILE_SSO_REDIRECT_URI = 'fluxer://auth/sso/callback';
 
 let ssoLogger: ILogger | undefined;
 
@@ -136,11 +138,10 @@ function buildDiscoveryCacheKey(issuer: string): string {
 	return `sso:oidc-discovery:${key}`;
 }
 
-function resolveSsoRedirectUri(requestedRedirectUri: string | undefined, defaultRedirectUri: string): string {
-	if (!requestedRedirectUri) return defaultRedirectUri;
-	const trimmed = requestedRedirectUri.trim();
-	if (!trimmed) return defaultRedirectUri;
-	if (trimmed === defaultRedirectUri || trimmed === MOBILE_SSO_REDIRECT_URI) return trimmed;
+function isMobileSsoRedirectUri(requestedRedirectUri: string | undefined, defaultRedirectUri: string): boolean {
+	const trimmed = requestedRedirectUri?.trim();
+	if (!trimmed || trimmed === defaultRedirectUri) return false;
+	if (trimmed === SSO_MOBILE_CALLBACK_URI) return true;
 	throw InputValidationError.fromCode('redirect_uri', ValidationErrorCodes.INVALID_URL_FORMAT);
 }
 
@@ -261,6 +262,7 @@ export class SsoService {
 		private readonly instanceConfigRepository: InstanceConfigRepository,
 		private readonly discriminatorService: IDiscriminatorService,
 		private readonly kvActivityTracker: KVActivityTracker,
+		private readonly singleCommunityService: SingleCommunityService,
 	) {}
 
 	async getPublicStatus(): Promise<PublicSsoStatus> {
@@ -285,16 +287,16 @@ export class SsoService {
 		redirect_uri: string;
 	}> {
 		const config = await this.requireReadyConfig();
-		const state = randomHexToken(STATE_BYTE_LENGTH);
+		const isMobile = isMobileSsoRedirectUri(redirectUri, config.redirectUri);
+		const state = `${isMobile ? SSO_MOBILE_STATE_PREFIX : ''}${randomHexToken(STATE_BYTE_LENGTH)}`;
 		const codeVerifier = randomBase64UrlToken(CODE_VERIFIER_BYTE_LENGTH);
 		const codeChallenge = buildCodeChallenge(codeVerifier);
 		const nonce = randomBase64UrlToken(NONCE_BYTE_LENGTH);
-		const ssoRedirectUri = resolveSsoRedirectUri(redirectUri, config.redirectUri);
 		const statePayload: SsoStatePayload = {
 			codeVerifier,
 			nonce,
 			redirectTo: sanitizeSsoRedirectTo(redirectTo),
-			redirectUri: ssoRedirectUri,
+			redirectUri: config.redirectUri,
 			createdAt: Date.now(),
 		};
 		const {cache} = this.apiContext.services;
@@ -302,7 +304,7 @@ export class SsoService {
 		const searchParams = new URLSearchParams({
 			response_type: 'code',
 			client_id: config.clientId ?? '',
-			redirect_uri: ssoRedirectUri,
+			redirect_uri: config.redirectUri,
 			scope: config.scope,
 			state,
 			code_challenge: codeChallenge,
@@ -324,10 +326,20 @@ export class SsoService {
 				throw new FeatureTemporarilyDisabledError();
 			}
 		}
-		return {authorization_url: authorizationUrlString, state, redirect_uri: ssoRedirectUri};
+		return {authorization_url: authorizationUrlString, state, redirect_uri: config.redirectUri};
 	}
 
-	async completeLogin({code, state, request}: {code: string; state: string; request: Request}): Promise<{
+	async completeLogin({
+		code,
+		state,
+		request,
+		requestCache,
+	}: {
+		code: string;
+		state: string;
+		request: Request;
+		requestCache: RequestCache;
+	}): Promise<{
 		token: string;
 		user_id: string;
 		redirect_to: string;
@@ -345,7 +357,7 @@ export class SsoService {
 			config,
 		});
 		const claims = await this.resolveClaims(tokenResponse, config, statePayload.nonce);
-		const user = await this.resolveUserFromClaims(claims, config);
+		const user = await this.resolveUserFromClaims(claims, config, requestCache);
 		const [token] = await AuthSession.createAuthSession(this.apiContext, {
 			user,
 			origin: AuthSession.resolveSessionOrigin(this.apiContext, request),
@@ -353,7 +365,11 @@ export class SsoService {
 		return {token, user_id: user.id.toString(), redirect_to: statePayload.redirectTo ?? ''};
 	}
 
-	private async resolveUserFromClaims(claims: ResolvedSsoClaims, config: ResolvedSsoConfig): Promise<User> {
+	private async resolveUserFromClaims(
+		claims: ResolvedSsoClaims,
+		config: ResolvedSsoConfig,
+		requestCache: RequestCache,
+	): Promise<User> {
 		if (!claims.emailVerified) {
 			throw InputValidationError.fromCode('email_verified', ValidationErrorCodes.INVALID_SSO_TOKEN);
 		}
@@ -389,6 +405,7 @@ export class SsoService {
 		if (pendingApproval) {
 			throw new RegistrationPendingApprovalError();
 		}
+		await this.singleCommunityService.joinStockCommunity(user.id, requestCache);
 		return user;
 	}
 
@@ -475,7 +492,6 @@ export class SsoService {
 			email: claims.email.toLowerCase(),
 			email_verified: claims.emailVerified,
 			email_bounced: false,
-			phone: null,
 			password_hash: null,
 			password_last_changed_at: null,
 			totp_secret: null,
@@ -503,7 +519,6 @@ export class SsoService {
 			stripe_subscription_id: null,
 			stripe_customer_id: null,
 			has_ever_purchased: false,
-			suspicious_activity_flags: 0,
 			terms_agreed_at: now,
 			privacy_agreed_at: now,
 			last_active_at: now,
@@ -568,7 +583,6 @@ export class SsoService {
 					locale: user.locale,
 					timezone: null,
 					invite_code: null,
-					suspicious_flags: user.suspiciousActivityFlags ?? 0,
 					flags: user.flags.toString(),
 				},
 				null,

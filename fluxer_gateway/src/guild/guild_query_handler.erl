@@ -11,6 +11,7 @@
 -endif.
 
 -define(INLINE_MEMBER_QUERY_MAX_IDS, 100).
+-define(INFERRED_DEADLINE_MARGIN_MS, 1000).
 
 -type guild_state() :: map().
 -type user_id() :: integer().
@@ -19,22 +20,98 @@
 -spec call(pid(), {atom(), map()}, pos_integer()) -> term().
 call(GuildPid, {Tag, Request}, Timeout) ->
     Deadline = os:system_time(millisecond) + Timeout,
-    gen_server:call(GuildPid, {Tag, Request#{deadline => Deadline}}, Timeout).
+    MonotonicDeadline = erlang:monotonic_time(millisecond) + Timeout,
+    gen_server:call(
+        GuildPid,
+        {Tag, Request#{deadline => Deadline, deadline_monotonic => MonotonicDeadline}},
+        Timeout
+    ).
 
 -spec handle_call(term(), gen_server:from(), guild_state()) ->
     {reply, term(), guild_state()}
     | {noreply, guild_state()}.
 handle_call(Msg, From, State) ->
-    case is_expired(Msg) of
+    case is_expired(Msg, From) of
         true -> {noreply, State};
         false -> handle_query(Msg, From, State)
     end.
 
--spec is_expired(term()) -> boolean().
-is_expired({_Tag, #{deadline := Deadline}}) when is_integer(Deadline) ->
-    os:system_time(millisecond) > Deadline;
-is_expired(_Msg) ->
+-spec is_expired(term(), gen_server:from()) -> boolean().
+is_expired(Msg, From) ->
+    case deadline_expired(Msg, From) of
+        unknown -> inferred_deadline_expired(Msg);
+        Expired -> Expired
+    end.
+
+-spec deadline_expired(term(), gen_server:from()) -> boolean() | unknown.
+deadline_expired({_Tag, #{deadline_monotonic := Deadline}}, {Caller, _ReplyTag}) when
+    is_integer(Deadline)
+->
+    case gateway_clock_offset:offset(node(Caller)) of
+        undefined -> unknown;
+        Offset -> erlang:monotonic_time(millisecond) > Deadline - Offset
+    end;
+deadline_expired(_Msg, _From) ->
+    unknown.
+
+-spec inferred_deadline_expired(term()) -> boolean().
+inferred_deadline_expired(Msg) when is_tuple(Msg), tuple_size(Msg) > 0 ->
+    case caller_timeout_ms(element(1, Msg)) of
+        undefined -> false;
+        TimeoutMs -> waited_longer_than(TimeoutMs + ?INFERRED_DEADLINE_MARGIN_MS)
+    end;
+inferred_deadline_expired(_Msg) ->
     false.
+
+-spec waited_longer_than(pos_integer()) -> boolean().
+waited_longer_than(Ms) ->
+    case guild_mailbox_age:min_age_ms() of
+        undefined -> false;
+        Age when Age > Ms -> inferred_deadlines_enabled();
+        _ -> false
+    end.
+
+-spec inferred_deadlines_enabled() -> boolean().
+inferred_deadlines_enabled() ->
+    application:get_env(fluxer_gateway, guild_query_inferred_deadlines, true) =/= false.
+
+-spec caller_timeout_ms(term()) -> pos_integer() | undefined.
+caller_timeout_ms(get_large_guild_metadata) -> 200;
+caller_timeout_ms(get_user_counts) -> 2000;
+caller_timeout_ms(get_viewer_counts) -> 2000;
+caller_timeout_ms(get_channel_member_counts) -> 2000;
+caller_timeout_ms(check_permission) -> 5000;
+caller_timeout_ms(get_guild_members_batch) -> 5000;
+caller_timeout_ms(list_guild_members) -> 10000;
+caller_timeout_ms(search_guild_members) -> 10000;
+caller_timeout_ms(Tag) -> rpc_caller_timeout_ms(Tag).
+
+-spec rpc_caller_timeout_ms(term()) -> pos_integer() | undefined.
+rpc_caller_timeout_ms(get_user_permissions) -> 4000;
+rpc_caller_timeout_ms(can_manage_roles) -> 4000;
+rpc_caller_timeout_ms(can_manage_role) -> 4000;
+rpc_caller_timeout_ms(get_assignable_roles) -> 4000;
+rpc_caller_timeout_ms(get_user_max_role_position) -> 4000;
+rpc_caller_timeout_ms(get_guild_data) -> 4000;
+rpc_caller_timeout_ms(get_guild_auth_context) -> 4000;
+rpc_caller_timeout_ms(get_guild_member) -> 4000;
+rpc_caller_timeout_ms(has_member) -> 4000;
+rpc_caller_timeout_ms(get_members_with_role) -> 4000;
+rpc_caller_timeout_ms(check_target_member) -> 4000;
+rpc_caller_timeout_ms(list_guild_members_cursor) -> 4000;
+rpc_caller_timeout_ms(get_viewable_channels) -> 4000;
+rpc_caller_timeout_ms(resolve_channel_mentions) -> 4000;
+rpc_caller_timeout_ms(get_vanity_url_channel) -> 4000;
+rpc_caller_timeout_ms(get_first_viewable_text_channel) -> 4000;
+rpc_caller_timeout_ms(get_category_channel_count) -> 4000;
+rpc_caller_timeout_ms(get_channel_count) -> 4000;
+rpc_caller_timeout_ms(get_users_to_mention_by_roles) -> 4000;
+rpc_caller_timeout_ms(get_users_to_mention_by_user_ids) -> 4000;
+rpc_caller_timeout_ms(get_all_users_to_mention) -> 4000;
+rpc_caller_timeout_ms(resolve_all_mentions) -> 4000;
+rpc_caller_timeout_ms(resolve_mention_sources) -> 4000;
+rpc_caller_timeout_ms(resolve_mention_sources_page) -> 4000;
+rpc_caller_timeout_ms(_Tag) -> undefined.
 
 -spec handle_query(term(), gen_server:from(), guild_state()) ->
     {reply, term(), guild_state()}
@@ -455,3 +532,76 @@ resolve_data_payload(#{<<"members">> := _} = State) ->
     State;
 resolve_data_payload(_State) ->
     undefined.
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+monotonic_deadline_ignores_the_legacy_wall_clock_test() ->
+    From = {self(), make_ref()},
+    Now = erlang:monotonic_time(millisecond),
+    ?assertNot(
+        is_expired({get_data, #{deadline => 0, deadline_monotonic => Now + 5000}}, From)
+    ),
+    ?assert(
+        is_expired(
+            {get_data, #{deadline => 9999999999999, deadline_monotonic => Now - 1}}, From
+        )
+    ),
+    ?assertNot(is_expired({get_data, #{deadline => 0}}, From)).
+
+deadline_less_queries_expire_once_every_known_caller_has_given_up_test() ->
+    Self = self(),
+    Ref = make_ref(),
+    spawn(fun() ->
+        From = {Self, make_ref()},
+        self() ! queued_request,
+        ok = guild_mailbox_age:note(),
+        Fresh = is_expired({get_large_guild_metadata}, From),
+        timer:sleep(1300),
+        Future = erlang:monotonic_time(millisecond) + 5000,
+        Results = #{
+            fresh => Fresh,
+            metadata => is_expired({get_large_guild_metadata}, From),
+            counts => is_expired({get_user_counts, 1}, From),
+            unknown_tag => is_expired({get_sessions}, From),
+            explicit_deadline =>
+                is_expired({get_large_guild_metadata, #{deadline_monotonic => Future}}, From)
+        },
+        ok = application:set_env(fluxer_gateway, guild_query_inferred_deadlines, false),
+        Disabled = is_expired({get_large_guild_metadata}, From),
+        ok = application:unset_env(fluxer_gateway, guild_query_inferred_deadlines),
+        Self ! {Ref, Results#{disabled => Disabled}}
+    end),
+    Results =
+        receive
+            {Ref, R} -> R
+        after 5000 -> error(timeout)
+        end,
+    ?assertEqual(
+        #{
+            fresh => false,
+            metadata => true,
+            counts => false,
+            unknown_tag => false,
+            explicit_deadline => false,
+            disabled => false
+        },
+        Results
+    ).
+
+call_keeps_the_legacy_deadline_and_adds_a_monotonic_deadline_test() ->
+    Guild = spawn(fun() ->
+        receive
+            {'$gen_call', From, {get_data, Request}} -> gen_server:reply(From, Request)
+        end
+    end),
+    WallBefore = os:system_time(millisecond),
+    MonotonicBefore = erlang:monotonic_time(millisecond),
+    #{deadline := WallDeadline, deadline_monotonic := MonotonicDeadline} =
+        call(Guild, {get_data, #{}}, 2000),
+    ?assert(WallDeadline >= WallBefore + 2000),
+    ?assert(WallDeadline =< os:system_time(millisecond) + 2000),
+    ?assert(MonotonicDeadline >= MonotonicBefore + 2000),
+    ?assert(MonotonicDeadline =< erlang:monotonic_time(millisecond) + 2000).
+
+-endif.

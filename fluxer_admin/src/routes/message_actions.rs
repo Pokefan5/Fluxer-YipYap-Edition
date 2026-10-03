@@ -171,7 +171,8 @@ pub(crate) async fn system_dms_post(
     let flash = if let Some(content) = content.as_deref()
         && !user_ids.is_empty()
     {
-        match client.send_system_dm(&user_ids, content).await {
+        let recipients = (user_ids != ["*"]).then_some(user_ids.as_slice());
+        match client.send_system_dm(recipients, content).await {
             Ok(_) => FlashData::success("System DM sent"),
             Err(error) => {
                 tracing::warn!(%error, "admin API request failed: send system DM");
@@ -216,19 +217,6 @@ pub(crate) async fn bulk_actions_post(
             let remove = form.list_values_any(&["remove_flags[]", "remove_flags"]);
             client
                 .bulk_update_user_flags(&user_ids, &add, &remove, audit_log_reason.as_deref())
-                .await
-        }
-        "bulk-update-suspicious-activity-flags" => {
-            let user_ids = form.list_values_any(&["user_ids[]", "user_ids"]);
-            let add = form.list_values_any(&["add_flags[]", "add_flags"]);
-            let remove = form.list_values_any(&["remove_flags[]", "remove_flags"]);
-            client
-                .bulk_update_suspicious_activity_flags(
-                    &user_ids,
-                    &add,
-                    &remove,
-                    audit_log_reason.as_deref(),
-                )
                 .await
         }
         "bulk-update-guild-features" => {

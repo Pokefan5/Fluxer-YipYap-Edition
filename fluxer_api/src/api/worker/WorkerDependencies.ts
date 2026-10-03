@@ -38,7 +38,6 @@ import type {InviteService} from '@app/api/invite/InviteService';
 import {Logger} from '@app/api/Logger';
 import type {LimitConfigService} from '@app/api/limits/LimitConfigService';
 import {createGuildStackServices} from '@app/api/middleware/GuildStackServiceFactory';
-import {getIpInfoService} from '@app/api/middleware/ServiceMiddleware';
 import {
 	ensureVoiceResourcesInitialized,
 	getGatewayService,
@@ -108,6 +107,7 @@ import {UserHarvestRepository} from '@app/api/user/UserHarvestRepository';
 import type {UserPermissionUtils} from '@app/api/utils/UserPermissionUtils';
 import type {VoiceRepository} from '@app/api/voice/VoiceRepository';
 import type {VoiceTopology} from '@app/api/voice/VoiceTopology';
+import type {WebhookRepository} from '@app/api/webhook/WebhookRepository';
 import type {WorkerTaskName} from '@app/api/worker/WorkerLaneConfig';
 import type {ICacheService} from '@pkgs/cache/src/ICacheService';
 import type {IEmailService} from '@pkgs/email/src/IEmailService';
@@ -150,6 +150,7 @@ export interface WorkerDependencies {
 	emailService: IEmailService;
 	instanceConfigRepository: InstanceConfigRepository;
 	inviteService: InviteService;
+	webhookRepository: WebhookRepository;
 	workerService: IWorkerService<WorkerTaskName>;
 	unfurlerService: IUnfurlerService;
 	embedService: EmbedService;
@@ -237,7 +238,6 @@ export async function initializeWorkerDependencies(snowflakeService: ISnowflakeS
 	}
 	const inviteRepository = getInviteRepository();
 	const webhookRepository = getWebhookRepository();
-	const ipInfoService = getIpInfoService();
 	const contactChangeLogService = getContactChangeLogService();
 	const apiContext = createApiContext();
 	const {channelService, guildService, inviteService} = createGuildStackServices({
@@ -263,7 +263,6 @@ export async function initializeWorkerDependencies(snowflakeService: ISnowflakeS
 		voiceRoomStore,
 		liveKitService,
 		voiceAvailabilityService,
-		ipInfoService,
 	});
 	const billingRepository = new BillingRepository(snowflakeService, kvClient);
 	const storeEntitlementService = createStoreEntitlementService({
@@ -308,6 +307,7 @@ export async function initializeWorkerDependencies(snowflakeService: ISnowflakeS
 		emailService,
 		instanceConfigRepository,
 		inviteService,
+		webhookRepository,
 		workerService,
 		unfurlerService,
 		embedService,

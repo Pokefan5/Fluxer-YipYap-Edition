@@ -163,6 +163,7 @@ function defaultConfig(): MasterConfig {
 				provider: 'none',
 				from_email: '',
 				from_name: 'Fluxer',
+				reply_to_email: '',
 				app_base_url: '',
 			},
 			voice: {
@@ -215,9 +216,6 @@ function defaultConfig(): MasterConfig {
 			},
 			blocklist_feeds: {},
 			breached_password_check: {},
-			ipinfo: {
-				api_key: '',
-			},
 			push: {
 				apns: {
 					enabled: false,
@@ -292,6 +290,12 @@ function assertOneOf<T extends string>(value: string, allowed: ReadonlyArray<T>,
 function requireString(value: string | undefined, envName: string): void {
 	if (!value || value.trim().length === 0) {
 		throw new Error(`${envName} is required`);
+	}
+}
+
+function validateReplyToEmail(value: string): void {
+	if (value !== '' && !/^[^\s@<>,;"]+@[^\s@<>,;"]+$/.test(value)) {
+		throw new Error('FLUXER_EMAIL_REPLY_TO_EMAIL must be a single email address such as support@example.com');
 	}
 }
 
@@ -408,7 +412,7 @@ function validateApiWorkerConfig(config: MasterConfig): void {
 		assertOneOf(worker.mode, ['all_lanes', 'single_lane', 'single_task'], 'FLUXER_API_WORKER_MODE');
 	}
 	if (worker.lane !== undefined) {
-		assertOneOf(worker.lane, ['realtime', 'unfurl', 'lifecycle', 'batch'], 'FLUXER_API_WORKER_LANE');
+		assertOneOf(worker.lane, ['realtime', 'unfurl', 'lifecycle', 'batch', 'crosspost'], 'FLUXER_API_WORKER_LANE');
 	}
 	if (worker.mode === 'single_task') {
 		requireString(worker.task, 'FLUXER_API_WORKER_TASK');
@@ -569,6 +573,7 @@ function normalizeConfig(config: MasterConfig): MasterConfig {
 	validateStorageChangeFeedConfig(config);
 	validateCachePurgeConfig(config);
 	validateStoreBillingConfig(config);
+	validateReplyToEmail(config.integrations.email.reply_to_email);
 	normalizeAppOriginAliases(config);
 	assertIntegerInRange(config.services.api.max_inflight_requests, 'FLUXER_API_MAX_INFLIGHT_REQUESTS', 1, 100_000);
 	assertIntegerInRange(config.services.api.headers_timeout_ms, 'FLUXER_API_HEADERS_TIMEOUT_MS', 1_000, 3_600_000);

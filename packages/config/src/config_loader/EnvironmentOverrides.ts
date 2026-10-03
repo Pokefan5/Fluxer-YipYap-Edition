@@ -148,6 +148,7 @@ const NAMED_FLUXER_ENV_OVERRIDES: Record<string, NamedEnvOverride> = {
 	FLUXER_EMAIL_PROVIDER: {path: ['integrations', 'email', 'provider']},
 	FLUXER_EMAIL_FROM_EMAIL: {path: ['integrations', 'email', 'from_email']},
 	FLUXER_EMAIL_FROM_NAME: {path: ['integrations', 'email', 'from_name']},
+	FLUXER_EMAIL_REPLY_TO_EMAIL: {path: ['integrations', 'email', 'reply_to_email']},
 	FLUXER_EMAIL_APP_BASE_URL: {path: ['integrations', 'email', 'app_base_url']},
 	FLUXER_EMAIL_WEBHOOK_SECRET: {path: ['integrations', 'email', 'webhook_secret']},
 	FLUXER_EMAIL_SMTP_HOST: {path: ['integrations', 'email', 'smtp', 'host']},
@@ -234,7 +235,6 @@ const NAMED_FLUXER_ENV_OVERRIDES: Record<string, NamedEnvOverride> = {
 		path: ['integrations', 'breached_password_check', 'enabled'],
 		parse: parseBoolean,
 	},
-	FLUXER_IPINFO_API_KEY: {path: ['integrations', 'ipinfo', 'api_key']},
 	FLUXER_PUSH_APNS_ENABLED: {path: ['integrations', 'push', 'apns', 'enabled'], parse: parseBoolean},
 	FLUXER_PUSH_APNS_TEAM_ID: {path: ['integrations', 'push', 'apns', 'team_id']},
 	FLUXER_PUSH_APNS_KEY_ID: {path: ['integrations', 'push', 'apns', 'key_id']},
@@ -396,7 +396,6 @@ export function setNestedValue(target: ConfigContainer, keys: Array<ConfigPathKe
 const NAMED_FLUXER_ENV_ALIASES: Record<string, string | undefined> = {
 	FLUXER_INTERNAL_MEDIA_PROXY_ENDPOINT: 'FLUXER_MEDIA_PROXY_ENDPOINT',
 	FLUXER_NATS_URL: 'FLUXER_NATS_CORE_URL',
-	FLUXER_IPINFO_API_KEY: 'FLUXER_RISK_IPINFO_API_KEY',
 };
 
 export const NAMED_FLUXER_ENV_NAMES = Object.keys(NAMED_FLUXER_ENV_OVERRIDES);

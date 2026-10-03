@@ -6,12 +6,12 @@ import {AdminService} from '@app/api/admin/AdminService';
 import {AuthRequestService} from '@app/api/auth/AuthRequestService';
 import {DesktopHandoffService} from '@app/api/auth/services/DesktopHandoffService';
 import {SsoService} from '@app/api/auth/services/SsoService';
-import {buildIpInfoCache, buildIpInfoRequestAuditLogger} from '@app/api/ban/IpInfoCacheFactory';
 import type {IBlueskyOAuthService} from '@app/api/bluesky/IBlueskyOAuthService';
 import {Config} from '@app/api/Config';
 import {createApiContext} from '@app/api/CreateApiContext';
 import {ChannelRepository} from '@app/api/channel/ChannelRepository';
 import {ChannelRequestService} from '@app/api/channel/services/ChannelRequestService';
+import {CrosspostSourceService} from '@app/api/channel/services/message/CrosspostSourceService';
 import {MessageRequestService} from '@app/api/channel/services/message/MessageRequestService';
 import {createMessageResponseDataService} from '@app/api/channel/services/message/MessageResponseDataService';
 import {StreamService} from '@app/api/channel/services/StreamService';
@@ -80,6 +80,7 @@ import {
 	getGatewayRequestService,
 	getGifService,
 	getGuildAuditLogService,
+	getGuildDiscoveryRepository,
 	getGuildDiscoveryService,
 	getGuildRepository,
 	getInstanceConfigRepository,
@@ -136,9 +137,9 @@ import {UserRelationshipRequestService} from '@app/api/user/services/UserRelatio
 import {UserService} from '@app/api/user/services/UserService';
 import {getRequestClientIp} from '@app/api/utils/RequestClientIp';
 import {VoiceService} from '@app/api/voice/VoiceService';
+import {ChannelFollowService} from '@app/api/webhook/ChannelFollowService';
 import {WebhookRequestService} from '@app/api/webhook/WebhookRequestService';
 import {WebhookService} from '@app/api/webhook/WebhookService';
-import {createIpInfoService, createUnavailableIpInfoService, type IpInfoService} from '@pkgs/geoip/src/IpInfoService';
 import {createMiddleware} from 'hono/factory';
 
 export {initializeServiceSingletons} from '@app/api/middleware/ServiceSingletons';
@@ -170,33 +171,6 @@ export function shutdownReportService(): void {
 		_reportService.shutdown();
 		_reportService = null;
 	}
-}
-
-let _ipInfoService: IpInfoService | null = null;
-let _injectedIpInfoService: IpInfoService | undefined;
-
-export function setInjectedIpInfoService(service: IpInfoService | undefined): void {
-	_injectedIpInfoService = service;
-}
-
-export function getIpInfoService(): IpInfoService {
-	if (_injectedIpInfoService) {
-		return _injectedIpInfoService;
-	}
-	if (_ipInfoService) return _ipInfoService;
-	if (!Config.ipinfo.apiKey) {
-		_ipInfoService = createUnavailableIpInfoService('IPInfo API key not configured');
-		return _ipInfoService;
-	}
-	const cache = buildIpInfoCache({
-		hot: getCacheService(),
-	});
-	_ipInfoService = createIpInfoService({
-		apiKey: Config.ipinfo.apiKey,
-		cache,
-		auditLogger: buildIpInfoRequestAuditLogger(),
-	});
-	return _ipInfoService;
 }
 
 let _liveKitWebhookService: LiveKitWebhookService | null = null;
@@ -267,6 +241,7 @@ class RequestServices implements RequestScopedServices {
 	private cachedUserContentRequestService: UserContentRequestService | undefined;
 	private cachedUserRelationshipRequestService: UserRelationshipRequestService | undefined;
 	private cachedWebhookService: WebhookService | undefined;
+	private cachedChannelFollowService: ChannelFollowService | undefined;
 	private cachedWebhookRequestService: WebhookRequestService | undefined;
 
 	constructor(
@@ -349,7 +324,6 @@ class RequestServices implements RequestScopedServices {
 			voiceRoomStore: this.voiceRooms,
 			liveKitService: this.liveKit,
 			voiceAvailabilityService: getVoiceAvailabilityService(),
-			ipInfoService: getIpInfoService(),
 		});
 		return this.cachedGuildStack;
 	}
@@ -544,7 +518,6 @@ class RequestServices implements RequestScopedServices {
 			getApplicationRepository(),
 			this.stripeService.getStripe(),
 			new JobLedgerRepository(),
-			getIpInfoService(),
 			this.storeEntitlementService,
 		);
 		return this.cachedAdminService;
@@ -568,6 +541,7 @@ class RequestServices implements RequestScopedServices {
 			getInstanceConfigRepository(),
 			getDiscriminatorService(),
 			getKVActivityTracker(),
+			this.singleCommunityService,
 		);
 		return this.cachedSsoService;
 	}
@@ -617,6 +591,12 @@ class RequestServices implements RequestScopedServices {
 		this.cachedMessageRequestService ??= new MessageRequestService(
 			this.channelService,
 			createMessageResponseDataService(),
+			new CrosspostSourceService(
+				this.requestGuildRepository,
+				getGuildDiscoveryRepository(),
+				this.gatewayService,
+				this.cacheService,
+			),
 		);
 		return this.cachedMessageRequestService;
 	}
@@ -852,11 +832,7 @@ class RequestServices implements RequestScopedServices {
 	}
 
 	get userAuthRequestService(): UserAuthRequestService {
-		this.cachedUserAuthRequestService ??= new UserAuthRequestService(
-			this.context,
-			getUserRepository(),
-			getGuildRepository(),
-		);
+		this.cachedUserAuthRequestService ??= new UserAuthRequestService(this.context, getUserRepository());
 		return this.cachedUserAuthRequestService;
 	}
 
@@ -902,6 +878,20 @@ class RequestServices implements RequestScopedServices {
 		return this.cachedWebhookService;
 	}
 
+	get channelFollowService(): ChannelFollowService {
+		this.cachedChannelFollowService ??= new ChannelFollowService(
+			this.webhookService,
+			getWebhookRepository(),
+			this.channelService,
+			getChannelRepository(),
+			this.guildService,
+			getAvatarService(),
+			getCacheService(),
+			getSnowflakeService(),
+		);
+		return this.cachedChannelFollowService;
+	}
+
 	get webhookRequestService(): WebhookRequestService {
 		this.cachedWebhookRequestService ??= new WebhookRequestService(
 			this.webhookService,
@@ -909,6 +899,7 @@ class RequestServices implements RequestScopedServices {
 			getUserCacheService(),
 			this.liveKitWebhookService ?? null,
 			getSweegoWebhookService(),
+			this.gatewayService,
 		);
 		return this.cachedWebhookRequestService;
 	}
@@ -931,6 +922,5 @@ export const ServiceMiddleware = createMiddleware<HonoEnv>(async (ctx, next) => 
 
 export function resetServiceMiddlewareForTesting(): void {
 	shutdownReportService();
-	_ipInfoService = null;
 	_liveKitWebhookService = null;
 }

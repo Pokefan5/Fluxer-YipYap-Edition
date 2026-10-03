@@ -290,6 +290,30 @@ describe('ConfigLoader', () => {
 		expect(config.services.api.storage_change_feed?.skip_buckets).toBeUndefined();
 	});
 
+	test('reads the email reply-to address', async () => {
+		stubMinimalEnv({FLUXER_EMAIL_REPLY_TO_EMAIL: 'support@example.com'});
+
+		const config = await loadConfig();
+
+		expect(config.integrations.email.reply_to_email).toBe('support@example.com');
+	});
+
+	test('leaves the email reply-to address empty when unset or blank', async () => {
+		stubMinimalEnv({FLUXER_EMAIL_REPLY_TO_EMAIL: ' '});
+
+		const config = await loadConfig();
+
+		expect(config.integrations.email.reply_to_email).toBe('');
+	});
+
+	test.each(['support', 'Support <support@example.com>', 'a@example.com,b@example.com', ' support@example.com'])(
+		'rejects %j as the email reply-to address',
+		async (value) => {
+			stubMinimalEnv({FLUXER_EMAIL_REPLY_TO_EMAIL: value});
+			await expect(loadConfig()).rejects.toThrow('FLUXER_EMAIL_REPLY_TO_EMAIL must be a single email address');
+		},
+	);
+
 	test('keeps explicit passkey relying party values', async () => {
 		stubMinimalEnv({
 			FLUXER_BASE_DOMAIN: 'chat.example.com',
@@ -341,6 +365,22 @@ describe('ConfigLoader', () => {
 		const config = await loadConfig();
 
 		expect(config.services.gateway).not.toHaveProperty('push_enabled');
+	});
+
+	test('accepts the crosspost worker lane', async () => {
+		stubMinimalEnv({
+			FLUXER_API_WORKER_MODE: 'single_lane',
+			FLUXER_API_WORKER_LANE: 'crosspost',
+			FLUXER_API_WORKER_LANE_CONCURRENCY_OVERRIDES: '{"crosspost":4}',
+		});
+		const config = await loadConfig();
+		expect(config.services.api.worker?.lane).toBe('crosspost');
+		expect(config.services.api.worker?.lane_concurrency_overrides?.crosspost).toBe(4);
+	});
+
+	test('rejects an unknown worker lane', async () => {
+		stubMinimalEnv({FLUXER_API_WORKER_MODE: 'single_lane', FLUXER_API_WORKER_LANE: 'publishing'});
+		await expect(loadConfig()).rejects.toThrow('FLUXER_API_WORKER_LANE');
 	});
 
 	test('rejects single task worker mode without task env', async () => {
@@ -652,7 +692,7 @@ describe('ConfigLoader', () => {
 		}
 	});
 
-	test('rejects a cache purge endpoint that carries credentials', async () => {
+	test('rejects a cache purge endpoint that contains credentials', async () => {
 		stubMinimalEnv({
 			FLUXER_CACHE_PURGE_ADAPTER: 'http',
 			FLUXER_CACHE_PURGE_HTTP_ENDPOINT: 'https://purger:secret@purge.internal/purge',
@@ -713,14 +753,6 @@ describe('ConfigLoader', () => {
 		const config = await loadConfig();
 
 		expect(config.integrations.breached_password_check.enabled).toBe(false);
-	});
-
-	test('reads the IPinfo key from its current name before the previous one', async () => {
-		stubMinimalEnv({FLUXER_RISK_IPINFO_API_KEY: 'previous'});
-		expect((await loadConfig()).integrations.ipinfo.api_key).toBe('previous');
-		resetConfig();
-		stubMinimalEnv({FLUXER_IPINFO_API_KEY: 'current', FLUXER_RISK_IPINFO_API_KEY: 'previous'});
-		expect((await loadConfig()).integrations.ipinfo.api_key).toBe('current');
 	});
 
 	test('leaves Bluesky login off with no legal URLs by default', async () => {
@@ -837,7 +869,7 @@ describe('ConfigLoader', () => {
 		expect(config.integrations.voice.url).toBe('http://localhost:8088/livekit');
 	});
 
-	test('inserts the public port into every other public url the config carries', async () => {
+	test('inserts the public port into every other public url the config contains', async () => {
 		stubMinimalEnv({
 			FLUXER_S3_PUBLIC_ENDPOINT: 'http://localhost/s3',
 			FLUXER_EMAIL_APP_BASE_URL: 'http://localhost',

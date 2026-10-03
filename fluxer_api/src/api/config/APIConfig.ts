@@ -4,7 +4,7 @@ import type {WorkerTaskName} from '@app/api/worker/WorkerLaneConfig';
 import type {CachePurgeAdapterName, StoreProductSlotName} from '@fluxer/config/src/MasterConfig';
 
 export type APIWorkerMode = 'all_lanes' | 'single_lane' | 'single_task';
-export type APIWorkerLaneName = 'realtime' | 'unfurl' | 'lifecycle' | 'batch';
+export type APIWorkerLaneName = 'realtime' | 'unfurl' | 'lifecycle' | 'batch' | 'crosspost';
 export type PushProviderEnvironment = 'production' | 'development';
 
 export interface PushProviderAppConfig {
@@ -155,6 +155,7 @@ export interface APIConfig {
 		webhookSecret?: string;
 		fromEmail: string;
 		fromName: string;
+		replyToEmail: string;
 		appBaseUrl: string;
 		smtp?: {
 			host: string;
@@ -163,9 +164,6 @@ export interface APIConfig {
 			password: string;
 			secure: boolean;
 		};
-	};
-	ipinfo: {
-		apiKey?: string;
 	};
 	blocklistFeeds: {
 		enabled: boolean;
@@ -345,6 +343,7 @@ export interface APIConfig {
 			unfurl?: number;
 			lifecycle?: number;
 			batch?: number;
+			crosspost?: number;
 		};
 	};
 	ncmec: {

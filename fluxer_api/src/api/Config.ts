@@ -248,6 +248,7 @@ export function buildAPIConfigFromMaster(master: MasterConfig): APIConfig {
 			webhookSecret: master.integrations.email.webhook_secret ?? undefined,
 			fromEmail: master.integrations.email.from_email,
 			fromName: master.integrations.email.from_name,
+			replyToEmail: master.integrations.email.reply_to_email,
 			appBaseUrl: resolveEmailAppBaseUrl(master),
 			smtp: master.integrations.email.smtp
 				? {
@@ -258,9 +259,6 @@ export function buildAPIConfigFromMaster(master: MasterConfig): APIConfig {
 						secure: master.integrations.email.smtp.secure ?? true,
 					}
 				: undefined,
-		},
-		ipinfo: {
-			apiKey: master.integrations.ipinfo.api_key || undefined,
 		},
 		blocklistFeeds: {
 			enabled: master.integrations.blocklist_feeds.enabled ?? !master.instance.self_hosted,
@@ -453,6 +451,7 @@ export function buildAPIConfigFromMaster(master: MasterConfig): APIConfig {
 				unfurl: apiWorkerConfig?.lane_concurrency_overrides?.unfurl,
 				lifecycle: apiWorkerConfig?.lane_concurrency_overrides?.lifecycle,
 				batch: apiWorkerConfig?.lane_concurrency_overrides?.batch,
+				crosspost: apiWorkerConfig?.lane_concurrency_overrides?.crosspost,
 			},
 		},
 	};
