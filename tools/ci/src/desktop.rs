@@ -19,7 +19,7 @@ use anyhow::{Context, Result, anyhow, bail, ensure};
 use chrono::Utc;
 use clap::{Args, ValueEnum};
 use serde::{Deserialize, Serialize};
-use serde_json::{json};
+use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::env;
@@ -1764,6 +1764,16 @@ struct WindowsPackageConfig {
     output_dir: PathBuf,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct VelopackAssetIndexEntry {
+    #[serde(rename = "RelativeFileName")]
+    relative_file_name: String,
+    #[serde(rename = "Type")]
+    asset_type: String,
+    #[serde(flatten)]
+    extra: BTreeMap<String, Value>,
+}
+
 fn windows_package_config(build_channel: &str, arch: &str) -> WindowsPackageConfig {
     let canary = build_channel == "canary";
     let pack_title = if canary { "YipYap Canary" } else { "YipYap" };
@@ -1819,7 +1829,7 @@ fn pack_and_validate_windows_velopack(
     vpk: &Path,
     config: &WindowsPackageConfig,
     version: &str,
-    _arch: &str,
+    arch: &str,
     pack_dir: &Path,
 ) -> Result<()> {
     run_command(CommandSpec::new(vpk).args([
@@ -1832,7 +1842,7 @@ fn pack_and_validate_windows_velopack(
         "--packDir",
         pack_dir.to_string_lossy().as_ref(),
         "--mainExe",
-        "YipYap.exe",
+        config.main_exe.as_str(),
         "--packTitle",
         config.pack_title,
         "--packAuthors",
@@ -1848,6 +1858,8 @@ fn pack_and_validate_windows_velopack(
         "--delta",
         "None",
     ]))?;
+    
+    validate_velopack_output(config, version, arch)?;
     remove_velopack_portable_archives(&config.output_dir)
 }
 
@@ -1863,6 +1875,202 @@ fn remove_velopack_portable_archives(output_dir: &Path) -> Result<()> {
         );
     }
     Ok(())
+}
+
+fn ensure_velopack_pack_supports(vpk: &Path, options: &[&str]) -> Result<()> {
+    let help = capture(CommandSpec::new(vpk).args(["pack", "--help"]))
+        .context("Failed to read `vpk pack --help` from the pinned Velopack CLI")?;
+    let text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&help.stdout),
+        String::from_utf8_lossy(&help.stderr)
+    );
+    let missing = options
+        .iter()
+        .filter(|option| !text.contains(**option))
+        .copied()
+        .collect::<Vec<_>>();
+    ensure!(
+        missing.is_empty(),
+        "The pinned Velopack CLI does not support {}. Update the pin or rework the packaging step before releasing.",
+        missing.join(", ")
+    );
+    Ok(())
+}
+
+fn validate_velopack_output(
+    config: &WindowsPackageConfig,
+    version: &str,
+    arch: &str,
+) -> Result<()> {
+    let legacy_releases = config.output_dir.join("RELEASES");
+    let velopack_releases = config.output_dir.join("releases.win.json");
+    let full_nupkg = first_file_matching(&config.output_dir, |name| name.ends_with("-full.nupkg"));
+    let delta_nupkgs = collect_files(&config.output_dir)?
+        .into_iter()
+        .filter(|path| {
+            path.file_name()
+                .and_then(OsStr::to_str)
+                .is_some_and(|name| name.ends_with("-delta.nupkg"))
+        })
+        .map(|path| path.display().to_string())
+        .collect::<Vec<_>>();
+
+    ensure!(
+        legacy_releases.exists(),
+        "Velopack did not produce the legacy Squirrel RELEASES file. Do not pass --channel to vpk pack for Windows, or old Squirrel clients cannot migrate."
+    );
+    ensure!(
+        velopack_releases.exists(),
+        "Velopack did not produce releases.win.json for Windows updates."
+    );
+    ensure!(
+        delta_nupkgs.is_empty(),
+        "Velopack produced {} disabled delta package(s), which cannot be independently verified against the signed full package:\n{}",
+        delta_nupkgs.len(),
+        delta_nupkgs.join("\n")
+    );
+    let full_nupkg = full_nupkg.ok_or_else(|| {
+        anyhow!("Velopack did not produce a full nupkg payload for Windows updates.")
+    })?;
+    let full_nupkg = rename_windows_update_package(config, version, arch, &full_nupkg)?;
+    let release_feed = fs::read_to_string(&legacy_releases)
+        .with_context(|| format!("Failed to read {}", legacy_releases.display()))?;
+    let nupkg_name = file_name_string(&full_nupkg)?;
+    ensure!(
+        release_feed.contains(&nupkg_name),
+        "The legacy Squirrel RELEASES file does not reference {nupkg_name}."
+    );
+
+    let setup_exe = first_file_matching(&config.output_dir, |name| name.ends_with("-Setup.exe"))
+        .ok_or_else(|| {
+            anyhow!(
+                "Velopack did not produce a Setup.exe in {}.",
+                config.output_dir.display()
+            )
+        })?;
+    let desired_setup_name = format!("{}-{version}-win-{arch}.exe", config.artifact_prefix);
+    if file_name_string(&setup_exe)? != desired_setup_name {
+        fs::rename(&setup_exe, config.output_dir.join(desired_setup_name))
+            .with_context(|| format!("Failed to rename {}", setup_exe.display()))?;
+    }
+    Ok(())
+}
+
+fn rename_windows_update_package(
+    config: &WindowsPackageConfig,
+    version: &str,
+    arch: &str,
+    source: &Path,
+) -> Result<PathBuf> {
+    let source_name = file_name_string(source)?;
+    let target_name = format!("{}-{version}-win-{arch}-full.nupkg", config.artifact_prefix);
+    let setup_name = format!("{}-{version}-win-{arch}.exe", config.artifact_prefix);
+    let portable_name = format!(
+        "{}-{version}-portable-win-{arch}.zip",
+        config.artifact_prefix
+    );
+    ensure!(
+        source_name != target_name,
+        "Velopack unexpectedly emitted the canonical package name {target_name:?} before feed normalization"
+    );
+    let legacy_path = config.output_dir.join("RELEASES");
+    let legacy = fs::read_to_string(&legacy_path)
+        .with_context(|| format!("Failed to read {}", legacy_path.display()))?;
+    ensure!(
+        legacy.matches(&source_name).count() == 1,
+        "{} must reference Velopack package {source_name:?} exactly once",
+        legacy_path.display()
+    );
+    fs::write(&legacy_path, legacy.replace(&source_name, &target_name))
+        .with_context(|| format!("Failed to rewrite {}", legacy_path.display()))?;
+
+    let releases_path = config.output_dir.join("releases.win.json");
+    let mut releases: Value = serde_json::from_slice(
+        &fs::read(&releases_path)
+            .with_context(|| format!("Failed to read {}", releases_path.display()))?,
+    )
+    .with_context(|| format!("Failed to parse {}", releases_path.display()))?;
+    let replacements = replace_json_string(&mut releases, &source_name, &target_name);
+    ensure!(
+        replacements == 1,
+        "{} must reference Velopack package {source_name:?} exactly once, found {replacements}",
+        releases_path.display()
+    );
+    write_json_pretty(&releases_path, &releases)?;
+
+    let assets_path = config.output_dir.join("assets.win.json");
+    let mut assets: Vec<VelopackAssetIndexEntry> = serde_json::from_slice(
+        &fs::read(&assets_path)
+            .with_context(|| format!("Failed to read {}", assets_path.display()))?,
+    )
+    .with_context(|| format!("Failed to parse {}", assets_path.display()))?;
+    ensure!(
+        assets.len() == 3,
+        "{} must contain exactly three Velopack assets, found {}",
+        assets_path.display(),
+        assets.len()
+    );
+    let mut asset_types = BTreeSet::new();
+    for asset in &mut assets {
+        ensure!(
+            asset_types.insert(asset.asset_type.as_str()),
+            "{} contains duplicate asset type {:?}",
+            assets_path.display(),
+            asset.asset_type
+        );
+        asset.relative_file_name = match asset.asset_type.as_str() {
+            "Installer" => setup_name.clone(),
+            "Portable" => portable_name.clone(),
+            "Full" => {
+                ensure!(
+                    asset.relative_file_name == source_name,
+                    "{} Full asset references {:?}, expected {source_name:?}",
+                    assets_path.display(),
+                    asset.relative_file_name
+                );
+                target_name.clone()
+            }
+            other => bail!(
+                "{} contains unsupported Velopack asset type {other:?}",
+                assets_path.display()
+            ),
+        };
+    }
+    ensure!(
+        asset_types == BTreeSet::from(["Full", "Installer", "Portable"]),
+        "{} contains an incomplete Velopack asset inventory",
+        assets_path.display()
+    );
+    write_json_pretty(&assets_path, &assets)?;
+
+    let target = config.output_dir.join(&target_name);
+    fs::rename(source, &target).with_context(|| {
+        format!(
+            "Failed to rename {} to {}",
+            source.display(),
+            target.display()
+        )
+    })?;
+    Ok(target)
+}
+
+fn replace_json_string(value: &mut Value, source: &str, target: &str) -> usize {
+    match value {
+        Value::String(current) if current == source => {
+            *current = target.to_string();
+            1
+        }
+        Value::Array(values) => values
+            .iter_mut()
+            .map(|value| replace_json_string(value, source, target))
+            .sum(),
+        Value::Object(values) => values
+            .values_mut()
+            .map(|value| replace_json_string(value, source, target))
+            .sum(),
+        _ => 0,
+    }
 }
 
 fn find_windows_unpacked_app(arch: &str, _main_exe: &str) -> Option<PathBuf> {
