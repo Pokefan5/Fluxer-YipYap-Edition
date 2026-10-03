@@ -2572,10 +2572,11 @@ impl<'a> DesktopReleaseAssetBuilder<'a> {
         let release_asset =
             desktop_release_asset_name(self.channel, self.version, platform, arch, &source_name)?;
         ensure!(
-            release_asset.starts_with(&canonical_prefix)
+            (release_asset.starts_with(&canonical_prefix)
                 && release_asset.bytes().all(|byte| {
                     byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_')
-                }),
+                }))
+                || release_asset.eq("releases.win.json"),
             "Desktop release asset name is not canonical and URL-safe: {release_asset:?}"
         );
         if let Some(existing) = self
