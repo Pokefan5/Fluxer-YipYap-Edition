@@ -609,33 +609,33 @@ jobs:
           name: fluxer-desktop-release-assets
           path: release_assets
 
-  - name: Create token
-    id: create-token
-    uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
-    with:
-      client-id: ${{ vars.FLUXER_CI_APP_ID }}
-      private-key: ${{ secrets.FLUXER_CI_APP_KEY }}
-      owner: fluxerapp
-      repositories: fluxer
-      permission-contents: write
-  - name: Publish GitHub desktop release
-    env:
-      GH_TOKEN: ${{ steps.create-token.outputs.token }}
-      CHANNEL: ${{ needs.meta.outputs.build_channel }}
-      VERSION: ${{ needs.meta.outputs.version }}
-      SOURCE_SHA: ${{ needs.meta.outputs.source_sha }}
-      RELEASE_BASELINE_SHA: ${{ vars.RELEASE_BASELINE_SHA }}
-    run: |
-      set -euo pipefail
-      release_args=(
-        release publish
-        --component "fluxer-desktop-${CHANNEL}"
-        --build-version "${VERSION}"
-        --source-sha "${SOURCE_SHA}"
-        --previous-sha "${RELEASE_BASELINE_SHA}"
-        --asset-dir release_assets
-      )
-      if [[ "${CHANNEL}" == "canary" ]]; then
-        release_args+=(--prerelease)
-      fi
-      cargo run --locked --quiet --manifest-path tools/ci/Cargo.toml -- "${release_args[@]}"
+      - name: Create token
+        id: create-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+        with:
+          client-id: ${{ vars.FLUXER_CI_APP_ID }}
+          private-key: ${{ secrets.FLUXER_CI_APP_KEY }}
+          owner: fluxerapp
+          repositories: fluxer
+          permission-contents: write
+      - name: Publish GitHub desktop release
+        env:
+          GH_TOKEN: ${{ steps.create-token.outputs.token }}
+          CHANNEL: ${{ needs.meta.outputs.build_channel }}
+          VERSION: ${{ needs.meta.outputs.version }}
+          SOURCE_SHA: ${{ needs.meta.outputs.source_sha }}
+          RELEASE_BASELINE_SHA: ${{ vars.RELEASE_BASELINE_SHA }}
+        run: |
+          set -euo pipefail
+          release_args=(
+            release publish
+            --component "fluxer-desktop-${CHANNEL}"
+            --build-version "${VERSION}"
+            --source-sha "${SOURCE_SHA}"
+            --previous-sha "${RELEASE_BASELINE_SHA}"
+            --asset-dir release_assets
+          )
+          if [[ "${CHANNEL}" == "canary" ]]; then
+            release_args+=(--prerelease)
+          fi
+          cargo run --locked --quiet --manifest-path tools/ci/Cargo.toml -- "${release_args[@]}"
