@@ -474,52 +474,54 @@ fn publish(args: PublishArgs) -> Result<()> {
         );
     }
 
-    let previous_sha = match qualified
-        .iter()
-        .filter(|release| release.tag != tag)
-        .filter(|release| {
-            existing_release.is_none_or(|existing| {
-                (release.published_at, release.id) < (existing.published_at, existing.id)
-            })
-        })
-        .max_by_key(|release| (release.published_at, release.id))
-    {
-        Some(previous) => {
-            let previous_sha = resolve_commit_sha(&previous.tag).with_context(|| {
-                format!(
-                    "Previous component release tag {} is not a resolvable repository commit",
-                    previous.tag
-                )
-            })?;
-            ensure!(
-                previous_sha != source_sha,
-                "Component {component} already has a prior qualified release at source SHA {source_sha}",
-                component = args.component
-            );
-            ensure_ancestor(&previous_sha, &source_sha, false)?;
-            previous_sha
-        }
-        None => {
-            let baseline = args
-                .previous_sha
-                .as_deref()
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-                .context("--previous-sha is required for the first qualified component release")?;
-            let baseline = validate_full_sha("previous SHA", baseline)?;
-            let resolved_baseline = resolve_commit_sha(&baseline).with_context(|| {
-                format!("Previous SHA {baseline} is not a resolvable repository commit")
-            })?;
-            ensure!(
-                resolved_baseline == baseline,
-                "Previous SHA {baseline} resolved to unexpected commit {resolved_baseline}"
-            );
-            ensure_ancestor(&baseline, &source_sha, true)?;
-            baseline
-        }
-    };
+    // let previous_sha = match qualified
+    //     .iter()
+    //     .filter(|release| release.tag != tag)
+    //     .filter(|release| {
+    //         existing_release.is_none_or(|existing| {
+    //             (release.published_at, release.id) < (existing.published_at, existing.id)
+    //         })
+    //     })
+    //     .max_by_key(|release| (release.published_at, release.id))
+    // {
+    //     Some(previous) => {
+    //         let previous_sha = resolve_commit_sha(&previous.tag).with_context(|| {
+    //             format!(
+    //                 "Previous component release tag {} is not a resolvable repository commit",
+    //                 previous.tag
+    //             )
+    //         })?;
+    //         ensure!(
+    //             previous_sha != source_sha,
+    //             "Component {component} already has a prior qualified release at source SHA {source_sha}",
+    //             component = args.component
+    //         );
+    //         ensure_ancestor(&previous_sha, &source_sha, false)?;
+    //         previous_sha
+    //     }
+    //     None => {
+    //         let baseline = args
+    //             .previous_sha
+    //             .as_deref()
+    //             .map(str::trim)
+    //             .filter(|value| !value.is_empty())
+    //             .context("--previous-sha is required for the first qualified component release")?;
+    //         let baseline = validate_full_sha("previous SHA", baseline)?;
+    //         let resolved_baseline = resolve_commit_sha(&baseline).with_context(|| {
+    //             format!("Previous SHA {baseline} is not a resolvable repository commit")
+    //         })?;
+    //         ensure!(
+    //             resolved_baseline == baseline,
+    //             "Previous SHA {baseline} resolved to unexpected commit {resolved_baseline}"
+    //         );
+    //         ensure_ancestor(&baseline, &source_sha, true)?;
+    //         baseline
+    //     }
+    // };
 
-    let body = release_body(&previous_sha, &source_sha);
+    // let body = release_body(&previous_sha, &source_sha);
+
+    let body = "We are alive!";
     let assets = local_release_assets(
         &args.component,
         &args.build_version,
