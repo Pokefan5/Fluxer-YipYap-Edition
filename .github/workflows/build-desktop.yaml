@@ -606,7 +606,7 @@ jobs:
       - name: Download GitHub release assets
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          name: fluxer-desktop-release-assets
+          name: yipyap-desktop-release-assets
           path: release_assets
 
       - name: Create token
@@ -629,7 +629,7 @@ jobs:
           set -euo pipefail
           release_args=(
             release publish
-            --component "fluxer-desktop-${CHANNEL}"
+            --component "yipyap-desktop-${CHANNEL}"
             --build-version "${VERSION}"
             --source-sha "${SOURCE_SHA}"
             --previous-sha "${RELEASE_BASELINE_SHA}"
