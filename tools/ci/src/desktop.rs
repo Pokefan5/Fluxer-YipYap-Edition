@@ -2210,6 +2210,1025 @@ fn create_portable_zip_windows_step() -> Result<()> {
     Ok(())
 }
 
+const FLUXER_WINDOWS_SIGNER_COMMON_NAME: &str = "Fluxer Platform AB";
+const THIRD_PARTY_WINDOWS_SIGNATURE_ALLOWLIST: &[(&str, &str)] = &[
+    (
+        "d3dcompiler_47.dll",
+        "CN=Microsoft Windows, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+    ),
+    (
+        "dxil.dll",
+        "CN=Microsoft Windows, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+    ),
+];
+const KNOWN_OPTIONAL_WINDOWS_PE_INVENTORY: &[&str] = &[];
+const FORBIDDEN_WINDOWS_GAME_CAPTURE_ARTIFACT_PREFIXES: &[&str] = &[
+    "fluxer-game-hook.",
+    "fluxer-inject-helper.",
+    "fluxer-vulkan-layer.",
+    "fluxer_game_hook.",
+    "fluxer_inject_helper.",
+    "fluxer_vulkan_layer.",
+];
+const WINDOWS_NATIVE_ADDON_STEMS: &[&str] = &[
+    "hardware-encoder",
+    "webauthn",
+    "win-process-loopback",
+    "win-clipboard",
+    "win-shell",
+    "win-toast",
+    "windows-input-hook",
+    "platform-info",
+];
+
+fn expected_windows_pe_inventory(arch: &str, main_exe: &str) -> Vec<String> {
+    let tag = format!("win32-{arch}-msvc");
+    let mut names = vec![
+        main_exe.to_string(),
+        format!("velopack_nodeffi_win_{arch}_msvc.node"),
+        format!("win-game-capture.{tag}.node"),
+    ];
+    names.extend(
+        WINDOWS_NATIVE_ADDON_STEMS
+            .iter()
+            .map(|stem| format!("{stem}.{tag}.node")),
+    );
+    names.sort();
+    names.dedup();
+    names
+}
+
+fn read_pe_machine(path: &Path) -> Result<Option<u16>> {
+    let mut file =
+        File::open(path).with_context(|| format!("Failed to open {}", path.display()))?;
+    let mut dos_header = [0u8; 0x40];
+    if !read_exact_or_eof(&mut file, &mut dos_header, path)? {
+        return Ok(None);
+    }
+    if &dos_header[0..2] != b"MZ" {
+        return Ok(None);
+    }
+    let e_lfanew = u32::from_le_bytes([
+        dos_header[0x3c],
+        dos_header[0x3d],
+        dos_header[0x3e],
+        dos_header[0x3f],
+    ]);
+    file.seek(SeekFrom::Start(u64::from(e_lfanew)))
+        .with_context(|| format!("Failed to seek in {}", path.display()))?;
+    let mut signature = [0u8; 4];
+    if !read_exact_or_eof(&mut file, &mut signature, path)? {
+        return Ok(None);
+    }
+    if &signature != b"PE\0\0" {
+        return Ok(None);
+    }
+    let mut machine = [0u8; 2];
+    if !read_exact_or_eof(&mut file, &mut machine, path)? {
+        return Ok(None);
+    }
+    Ok(Some(u16::from_le_bytes(machine)))
+}
+
+fn is_pe_file(path: &Path) -> Result<bool> {
+    Ok(read_pe_machine(path)?.is_some())
+}
+
+fn read_exact_or_eof(file: &mut File, buffer: &mut [u8], path: &Path) -> Result<bool> {
+    match file.read_exact(buffer) {
+        Ok(()) => Ok(true),
+        Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => Ok(false),
+        Err(error) => Err(error).with_context(|| format!("Failed to read {}", path.display())),
+    }
+}
+
+fn collect_pe_files(root: &Path) -> Result<Vec<PathBuf>> {
+    let mut files = Vec::new();
+    for path in collect_files(root)? {
+        if is_pe_file(&path)? {
+            files.push(path);
+        }
+    }
+    Ok(files)
+}
+
+fn absolute_path(path: &Path) -> Result<PathBuf> {
+    if path.is_absolute() {
+        return Ok(path.to_path_buf());
+    }
+    Ok(env::current_dir()
+        .context("Failed to resolve current directory")?
+        .join(path))
+}
+
+fn relative_display(root: &Path, path: &Path) -> String {
+    path.strip_prefix(root)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .replace('\\', "/")
+}
+
+fn percent_decode_archive_name(name: &str) -> String {
+    if !name.contains('%') {
+        return name.to_string();
+    }
+    let bytes = name.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' && index + 2 < bytes.len() {
+            let high = (bytes[index + 1] as char).to_digit(16);
+            let low = (bytes[index + 2] as char).to_digit(16);
+            if let (Some(high), Some(low)) = (high, low) {
+                decoded.push((high * 16 + low) as u8);
+                index += 3;
+                continue;
+            }
+        }
+        decoded.push(bytes[index]);
+        index += 1;
+    }
+    String::from_utf8(decoded).unwrap_or_else(|_| name.to_string())
+}
+
+fn windows_pe_machine_arch(machine: u16) -> Option<&'static str> {
+    match machine {
+        0x014c => Some("ia32"),
+        0x8664 => Some("x64"),
+        0xaa64 => Some("arm64"),
+        _ => None,
+    }
+}
+
+fn assert_windows_native_pe_machines(
+    root: &Path,
+    files: &[PathBuf],
+    expected_arch: &str,
+    main_exe: &str,
+) -> Result<()> {
+    let mut violations = Vec::new();
+    let normalized_main_exe = main_exe.to_ascii_lowercase();
+    for path in files {
+        let Some(file_name) = path.file_name().and_then(OsStr::to_str) else {
+            continue;
+        };
+        let normalized_name = percent_decode_archive_name(file_name).to_ascii_lowercase();
+        let file_arch = if normalized_name == normalized_main_exe {
+            Some(expected_arch)
+        } else {
+            windows_native_pe_arch(&normalized_name)
+        };
+        let Some(file_arch) = file_arch else {
+            continue;
+        };
+        let machine = read_pe_machine(path)?.ok_or_else(|| {
+            anyhow!(
+                "{} was collected as a PE file but no COFF Machine field was readable",
+                path.display()
+            )
+        })?;
+        let actual_arch = windows_pe_machine_arch(machine);
+        if actual_arch != Some(file_arch) || actual_arch != Some(expected_arch) {
+            violations.push(format!(
+                "{}: file policy expects {file_arch}, COFF Machine is 0x{machine:04x} ({}) and package architecture is {expected_arch}",
+                relative_display(root, path),
+                actual_arch.unwrap_or("unknown")
+            ));
+        }
+    }
+    ensure!(
+        violations.is_empty(),
+        "{} contains {} Windows native binary/binaries with invalid machine architecture:\n{}",
+        root.display(),
+        violations.len(),
+        violations.join("\n")
+    );
+    Ok(())
+}
+
+fn assert_expected_windows_pe_inventory(
+    root: &Path,
+    files: &[PathBuf],
+    arch: &str,
+    main_exe: &str,
+) -> Result<()> {
+    let present = files
+        .iter()
+        .filter_map(|path| path.file_name().and_then(OsStr::to_str))
+        .map(percent_decode_archive_name)
+        .collect::<BTreeSet<_>>();
+    let expected = expected_windows_pe_inventory(arch, main_exe);
+    let missing = expected
+        .iter()
+        .filter(|name| !present.contains(*name))
+        .cloned()
+        .collect::<Vec<_>>();
+    ensure!(
+        missing.is_empty(),
+        "{} is missing {} expected Windows binaries:\n{}",
+        root.display(),
+        missing.len(),
+        missing.join("\n")
+    );
+    let forbidden = present
+        .iter()
+        .filter_map(|name| windows_pe_inventory_violation(name, arch))
+        .collect::<Vec<_>>();
+    ensure!(
+        forbidden.is_empty(),
+        "{} contains {} forbidden Windows native binaries:\n{}",
+        root.display(),
+        forbidden.len(),
+        forbidden.join("\n")
+    );
+    let contradictory = contradictory_optional_windows_pe_inventory(arch, main_exe);
+    ensure!(
+        contradictory.is_empty(),
+        "KNOWN_OPTIONAL_WINDOWS_PE_INVENTORY lists {} binary/binaries that {arch} also requires, so the inventory contradicts itself:\n{}",
+        contradictory.len(),
+        contradictory.join("\n")
+    );
+    for name in KNOWN_OPTIONAL_WINDOWS_PE_INVENTORY {
+        println!(
+            "Known-optional Windows binary {name}: {}",
+            if present.contains(*name) {
+                "present"
+            } else {
+                "absent"
+            }
+        );
+    }
+    let unlisted = present
+        .iter()
+        .filter(|name| {
+            !expected.iter().any(|value| value == *name)
+                && !KNOWN_OPTIONAL_WINDOWS_PE_INVENTORY.contains(&name.as_str())
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    println!(
+        "{}: {} expected, {} unlisted PE(s) shipped by glob (Electron runtime and third-party binaries). Every one of them is signature-classified below; none may be unsigned or signed by an unknown publisher.",
+        root.display(),
+        expected.len(),
+        unlisted.len()
+    );
+    for name in &unlisted {
+        println!("Unlisted Windows PE pending signature classification: {name}");
+    }
+    Ok(())
+}
+
+const ASAR_HEADER_LIMIT: usize = 64 * 1024 * 1024;
+const ASAR_ENTRY_LIMIT: usize = 1_000_000;
+const ASAR_NESTING_LIMIT: usize = 256;
+
+fn windows_package_file_policy_violation(relative: &str, expected_arch: &str) -> bool {
+    let normalized_relative = relative
+        .replace('\\', "/")
+        .split('/')
+        .map(percent_decode_archive_name)
+        .collect::<Vec<_>>()
+        .join("/")
+        .replace('\\', "/")
+        .to_ascii_lowercase();
+    let normalized_name = normalized_relative
+        .rsplit('/')
+        .next()
+        .unwrap_or_default()
+        .to_string();
+    if FORBIDDEN_WINDOWS_GAME_CAPTURE_ARTIFACT_PREFIXES
+        .iter()
+        .any(|prefix| normalized_name.starts_with(prefix))
+    {
+        return true;
+    }
+    if normalized_name == "compatibility.json"
+        && normalized_relative
+            .split('/')
+            .any(|component| component == "win-game-capture")
+    {
+        return true;
+    }
+    windows_native_pe_arch(&normalized_name).is_some_and(|arch| arch != expected_arch)
+}
+
+fn read_u32_le(bytes: &[u8], offset: usize) -> Result<u32> {
+    let end = offset
+        .checked_add(4)
+        .ok_or_else(|| anyhow!("ASAR header offset overflow"))?;
+    let value = bytes
+        .get(offset..end)
+        .ok_or_else(|| anyhow!("ASAR header is truncated at byte {offset}"))?;
+    let value = <[u8; 4]>::try_from(value)
+        .map_err(|_| anyhow!("ASAR header field at byte {offset} is not four bytes"))?;
+    Ok(u32::from_le_bytes(value))
+}
+
+fn collect_asar_policy_violations(
+    node: &Value,
+    expected_arch: &str,
+    violations: &mut Vec<String>,
+) -> Result<()> {
+    let mut stack = vec![(node, String::new(), 0usize)];
+    let mut entry_count = 0usize;
+    while let Some((current, prefix, depth)) = stack.pop() {
+        ensure!(
+            depth <= ASAR_NESTING_LIMIT,
+            "ASAR header nesting exceeds {ASAR_NESTING_LIMIT} levels under {prefix:?}"
+        );
+        let files = current
+            .get("files")
+            .and_then(Value::as_object)
+            .ok_or_else(|| anyhow!("ASAR header node {prefix:?} has no files object"))?;
+        for (name, entry) in files {
+            entry_count = entry_count
+                .checked_add(1)
+                .ok_or_else(|| anyhow!("ASAR entry count overflow"))?;
+            ensure!(
+                entry_count <= ASAR_ENTRY_LIMIT,
+                "ASAR header contains more than {ASAR_ENTRY_LIMIT} entries"
+            );
+            let decoded_name = percent_decode_archive_name(name);
+            ensure!(
+                !name.is_empty()
+                    && name != "."
+                    && name != ".."
+                    && !name.contains('/')
+                    && !name.contains('\\')
+                    && decoded_name != "."
+                    && decoded_name != ".."
+                    && !decoded_name.contains('/')
+                    && !decoded_name.contains('\\'),
+                "ASAR header contains invalid entry name {name:?} under {prefix:?}"
+            );
+            let relative = if prefix.is_empty() {
+                name.clone()
+            } else {
+                format!("{prefix}/{name}")
+            };
+            if windows_package_file_policy_violation(&relative, expected_arch) {
+                violations.push(relative.clone());
+            }
+            if entry.get("files").is_some() {
+                stack.push((entry, relative, depth + 1));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn asar_policy_violations(path: &Path, expected_arch: &str) -> Result<Vec<String>> {
+    let mut file =
+        File::open(path).with_context(|| format!("Failed to open {}", path.display()))?;
+    let file_size = file
+        .metadata()
+        .with_context(|| format!("Failed to stat {}", path.display()))?
+        .len();
+    let mut prefix = [0u8; 16];
+    file.read_exact(&mut prefix)
+        .with_context(|| format!("Failed to read ASAR header prefix from {}", path.display()))?;
+    let size_pickle_payload = read_u32_le(&prefix, 0)?;
+    let header_pickle_size = read_u32_le(&prefix, 4)?;
+    let header_pickle_payload = read_u32_le(&prefix, 8)?;
+    let header_json_size = read_u32_le(&prefix, 12)?;
+    let padded_header_json_size = header_json_size
+        .checked_add(3)
+        .map(|size| size & !3)
+        .ok_or_else(|| anyhow!("{} ASAR JSON header size overflow", path.display()))?;
+    let expected_header_pickle_payload = padded_header_json_size
+        .checked_add(4)
+        .ok_or_else(|| anyhow!("{} ASAR pickle payload size overflow", path.display()))?;
+    ensure!(
+        size_pickle_payload == 4
+            && header_pickle_payload.checked_add(4) == Some(header_pickle_size)
+            && header_pickle_payload == expected_header_pickle_payload,
+        "{} has an invalid ASAR pickle header",
+        path.display()
+    );
+    let header_json_size = usize::try_from(header_json_size).context("ASAR header is too large")?;
+    ensure!(
+        header_json_size > 0 && header_json_size <= ASAR_HEADER_LIMIT,
+        "{} ASAR JSON header size {} is outside 1..={ASAR_HEADER_LIMIT}",
+        path.display(),
+        header_json_size
+    );
+    let header_pickle_size =
+        usize::try_from(header_pickle_size).context("ASAR pickle header is too large")?;
+    let archive_payload_offset = 8usize
+        .checked_add(header_pickle_size)
+        .ok_or_else(|| anyhow!("{} ASAR header size overflow", path.display()))?;
+    ensure!(
+        u64::try_from(archive_payload_offset).unwrap_or(u64::MAX) <= file_size,
+        "{} ASAR header extends beyond the {}-byte archive",
+        path.display(),
+        file_size
+    );
+    let mut header_json = vec![0u8; header_json_size];
+    file.read_exact(&mut header_json)
+        .with_context(|| format!("Failed to read ASAR JSON header from {}", path.display()))?;
+    let header: Value = serde_json::from_slice(&header_json)
+        .with_context(|| format!("Failed to parse ASAR JSON header from {}", path.display()))?;
+    let mut violations = Vec::new();
+    collect_asar_policy_violations(&header, expected_arch, &mut violations)?;
+    Ok(violations)
+}
+
+fn assert_windows_package_file_policy(root: &Path, expected_arch: &str) -> Result<()> {
+    let mut forbidden = Vec::new();
+    for path in collect_files(root)? {
+        let relative = relative_display(root, &path);
+        if windows_package_file_policy_violation(&relative, expected_arch) {
+            forbidden.push(relative.clone());
+        }
+        if path
+            .file_name()
+            .and_then(OsStr::to_str)
+            .is_some_and(|name| {
+                percent_decode_archive_name(name)
+                    .to_ascii_lowercase()
+                    .ends_with(".asar")
+            })
+        {
+            forbidden.extend(
+                asar_policy_violations(&path, expected_arch)?
+                    .into_iter()
+                    .map(|entry| format!("{relative}!/{entry}")),
+            );
+        }
+    }
+    forbidden.sort();
+    forbidden.dedup();
+    ensure!(
+        forbidden.is_empty(),
+        "{} contains {} forbidden Windows package file(s):\n{}",
+        root.display(),
+        forbidden.len(),
+        forbidden.join("\n")
+    );
+    Ok(())
+}
+
+fn windows_pe_inventory_violation(name: &str, expected_arch: &str) -> Option<String> {
+    let normalized = name.to_ascii_lowercase();
+    if FORBIDDEN_WINDOWS_GAME_CAPTURE_ARTIFACT_PREFIXES
+        .iter()
+        .any(|prefix| normalized.starts_with(prefix))
+    {
+        return Some(format!(
+            "{name}: disabled game-capture hook sidecars must not ship"
+        ));
+    }
+    let packaged_arch = windows_native_pe_arch(&normalized)?;
+    if packaged_arch == expected_arch {
+        return None;
+    }
+    Some(format!(
+        "{name}: native architecture is {packaged_arch}, expected {expected_arch}"
+    ))
+}
+
+fn windows_native_pe_arch(name: &str) -> Option<&'static str> {
+    for (marker, arch) in [
+        (".win32-x64-msvc.", "x64"),
+        (".win32-arm64-msvc.", "arm64"),
+        (".win32-ia32-msvc.", "ia32"),
+        ("_win_x64_msvc.", "x64"),
+        ("_win_arm64_msvc.", "arm64"),
+        ("_win_x86_msvc.", "ia32"),
+    ] {
+        if name.contains(marker) {
+            return Some(arch);
+        }
+    }
+    None
+}
+
+fn contradictory_optional_windows_pe_inventory(arch: &str, main_exe: &str) -> Vec<String> {
+    let expected = expected_windows_pe_inventory(arch, main_exe);
+    KNOWN_OPTIONAL_WINDOWS_PE_INVENTORY
+        .iter()
+        .filter(|name| expected.iter().any(|value| value == *name))
+        .map(|name| (*name).to_string())
+        .collect()
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct SignatureRow {
+    #[serde(rename = "Path")]
+    path: String,
+    #[serde(rename = "Status")]
+    status: String,
+    #[serde(rename = "Subject")]
+    subject: Option<String>,
+    #[serde(rename = "Thumbprint")]
+    thumbprint: Option<String>,
+    #[serde(rename = "TsSubject")]
+    ts_subject: Option<String>,
+}
+
+fn authenticode_report(files: &[PathBuf]) -> Result<Vec<SignatureRow>> {
+    let temp = TempDir::new().context("Failed to create Authenticode report temp directory")?;
+    let list_path = temp.path().join("paths.txt");
+    let mut list = String::new();
+    for file in files {
+        list.push_str(file.to_string_lossy().as_ref());
+        list.push('\n');
+    }
+    fs::write(&list_path, list)
+        .with_context(|| format!("Failed to write {}", list_path.display()))?;
+
+    let script_path = temp.path().join("authenticode-report.ps1");
+    fs::write(&script_path, authenticode_report_script(&list_path))
+        .with_context(|| format!("Failed to write {}", script_path.display()))?;
+
+    let output = capture(
+        CommandSpec::new(powershell_host())
+            .args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                script_path.to_string_lossy().as_ref(),
+            ])
+            .env_remove("PSModulePath"),
+    )?;
+    ensure!(
+        output.status == 0,
+        "Get-AuthenticodeSignature failed with exit code {}",
+        output.status
+    );
+    let stdout = String::from_utf8(output.stdout)
+        .context("Get-AuthenticodeSignature output was not UTF-8")?;
+    parse_authenticode_report(stdout.trim())
+}
+
+fn powershell_host() -> &'static str {
+    if which_in_path("pwsh.exe").is_some() || which_in_path("pwsh").is_some() {
+        return "pwsh";
+    }
+    "powershell"
+}
+
+fn which_in_path(program: &str) -> Option<PathBuf> {
+    let path = env::var_os("PATH")?;
+    env::split_paths(&path)
+        .map(|directory| directory.join(program))
+        .find(|candidate| candidate.is_file())
+}
+
+fn authenticode_report_script(list_path: &Path) -> String {
+    format!(
+        "$ErrorActionPreference = 'Stop'\n\
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false\n\
+$paths = @(Get-Content -LiteralPath '{}' -Encoding UTF8 | Where-Object {{ $_ -ne '' }})\n\
+$rows = @(Get-AuthenticodeSignature -LiteralPath $paths | Select-Object \
+@{{n='Path';e={{[string]$_.Path}}}}, \
+@{{n='Status';e={{[string]$_.Status}}}}, \
+@{{n='Subject';e={{if ($_.SignerCertificate) {{ [string]$_.SignerCertificate.Subject }} else {{ $null }}}}}}, \
+@{{n='Thumbprint';e={{if ($_.SignerCertificate) {{ [string]$_.SignerCertificate.Thumbprint }} else {{ $null }}}}}}, \
+@{{n='TsSubject';e={{if ($_.TimeStamperCertificate) {{ [string]$_.TimeStamperCertificate.Subject }} else {{ $null }}}}}})\n\
+ConvertTo-Json -InputObject $rows -Depth 3 -Compress\n",
+        list_path.display()
+    )
+}
+
+fn parse_authenticode_report(json: &str) -> Result<Vec<SignatureRow>> {
+    let json = json.trim_start_matches('\u{feff}').trim();
+    ensure!(
+        !json.is_empty(),
+        "Get-AuthenticodeSignature produced no output."
+    );
+    let value: Value =
+        serde_json::from_str(json).context("Failed to parse Get-AuthenticodeSignature JSON")?;
+    let rows = match value {
+        Value::Array(items) => items,
+        single => vec![single],
+    };
+    rows.into_iter()
+        .map(|row| {
+            serde_json::from_value::<SignatureRow>(row)
+                .context("Failed to parse Get-AuthenticodeSignature row")
+        })
+        .collect()
+}
+
+fn certificate_common_name(subject: &str) -> Option<&str> {
+    subject
+        .split(", ")
+        .find_map(|component| component.strip_prefix("CN="))
+}
+
+fn assert_fluxer_signed(row: &SignatureRow) -> Result<()> {
+    ensure!(
+        row.status == "Valid",
+        "Authenticode status is {} (expected Valid)",
+        row.status
+    );
+    ensure!(
+        row.ts_subject.is_some(),
+        "Authenticode signature has no RFC3161 timestamp"
+    );
+    let subject = row
+        .subject
+        .as_deref()
+        .ok_or_else(|| anyhow!("Authenticode signature has no signer certificate subject"))?;
+    let common_name = certificate_common_name(subject)
+        .ok_or_else(|| anyhow!("Signer subject has no CN= component: {subject}"))?;
+    ensure!(
+        common_name == FLUXER_WINDOWS_SIGNER_COMMON_NAME,
+        "Signer CN is '{common_name}', expected '{}' (thumbprint {})",
+        FLUXER_WINDOWS_SIGNER_COMMON_NAME,
+        row.thumbprint.as_deref().unwrap_or("unknown")
+    );
+    Ok(())
+}
+
+fn assert_third_party_signed(row: &SignatureRow, relative: &str) -> Result<()> {
+    ensure!(
+        row.status == "Valid",
+        "Authenticode status is {} (expected Valid)",
+        row.status
+    );
+    let subject = row
+        .subject
+        .as_deref()
+        .ok_or_else(|| anyhow!("Authenticode signature has no signer certificate subject"))?;
+    ensure!(
+        THIRD_PARTY_WINDOWS_SIGNATURE_ALLOWLIST
+            .iter()
+            .any(|(allowed_path, allowed_subject)| {
+                relative.eq_ignore_ascii_case(allowed_path) && subject == *allowed_subject
+            }),
+        "Signer subject '{subject}' is not allowlisted for {relative}"
+    );
+    ensure!(
+        row.ts_subject.is_some(),
+        "Authenticode signature has no RFC3161 timestamp"
+    );
+    Ok(())
+}
+
+fn assert_signed_by_known_publisher(row: &SignatureRow, relative: &str) -> Result<()> {
+    match assert_fluxer_signed(row) {
+        Ok(()) => Ok(()),
+        Err(fluxer_error) => assert_third_party_signed(row, relative)
+            .map_err(|third_party_error| anyhow!("{fluxer_error}; {third_party_error}")),
+    }
+}
+
+fn same_windows_path(reported: &str, expected: &Path) -> bool {
+    fn normalise(value: &str) -> String {
+        let replaced = value.replace('/', "\\");
+        let trimmed = replaced.trim_start_matches(r"\\?\");
+        trimmed.to_ascii_lowercase()
+    }
+    normalise(reported) == normalise(expected.to_string_lossy().as_ref())
+}
+
+fn find_signtool() -> Result<PathBuf> {
+    if let Some(path) = env_string("SIGNTOOL_PATH")
+        .map(PathBuf::from)
+        .filter(|path| path.exists())
+    {
+        return Ok(path);
+    }
+    let roots = [
+        PathBuf::from(r"C:\Program Files (x86)\Windows Kits\10\bin"),
+        PathBuf::from(r"C:\Program Files\Windows Kits\10\bin"),
+    ];
+    let host_leaf = signtool_host_arch_dir();
+    let mut best: Option<((u8, [u32; 4]), PathBuf)> = None;
+    for root in &roots {
+        if !root.exists() {
+            continue;
+        }
+        for entry in WalkDir::new(root)
+            .into_iter()
+            .filter_map(std::result::Result::ok)
+            .filter(|entry| entry.file_type().is_file())
+        {
+            let path = entry.into_path();
+            if !path
+                .file_name()
+                .and_then(OsStr::to_str)
+                .is_some_and(|name| name.eq_ignore_ascii_case("signtool.exe"))
+            {
+                continue;
+            }
+            let leaf_matches_host = path
+                .parent()
+                .and_then(Path::file_name)
+                .and_then(OsStr::to_str)
+                .is_some_and(|leaf| leaf.eq_ignore_ascii_case(host_leaf));
+            let rank = (
+                u8::from(leaf_matches_host),
+                windows_sdk_version_from_path(&path),
+            );
+            if best.as_ref().is_none_or(|(current, _)| rank > *current) {
+                best = Some((rank, path));
+            }
+        }
+    }
+    let (rank, path) = best.ok_or_else(|| {
+        anyhow!(
+            "Could not find signtool.exe under {} or {}. Install the Windows SDK Signing Tools on the runner, or set SIGNTOOL_PATH to an explicit signtool.exe.",
+            roots[0].display(),
+            roots[1].display()
+        )
+    })?;
+    let (host_arch_match, sdk_version) = rank;
+    println!(
+        "Using signtool {} (SDK {}.{}.{}.{}, host architecture match: {})",
+        path.display(),
+        sdk_version[0],
+        sdk_version[1],
+        sdk_version[2],
+        sdk_version[3],
+        host_arch_match == 1
+    );
+    Ok(path)
+}
+
+fn signtool_host_arch_dir() -> &'static str {
+    match env::consts::ARCH {
+        "aarch64" => "arm64",
+        "x86" => "x86",
+        _ => "x64",
+    }
+}
+
+fn windows_sdk_version_from_path(path: &Path) -> [u32; 4] {
+    let mut best = [0u32; 4];
+    for component in path.components() {
+        let Some(text) = component.as_os_str().to_str() else {
+            continue;
+        };
+        let parts = text.split('.').collect::<Vec<_>>();
+        if parts.len() < 2 || parts.len() > 4 {
+            continue;
+        }
+        let mut version = [0u32; 4];
+        let mut parsed = true;
+        for (index, part) in parts.iter().enumerate() {
+            match part.parse::<u32>() {
+                Ok(value) => version[index] = value,
+                Err(_) => {
+                    parsed = false;
+                    break;
+                }
+            }
+        }
+        if parsed && version > best {
+            best = version;
+        }
+    }
+    best
+}
+
+fn verify_pe_signature(signtool: &Path, file: &Path) -> Result<()> {
+    let output = capture(CommandSpec::new(signtool).args([
+        "verify",
+        "/pa",
+        "/all",
+        "/tw",
+        file.to_string_lossy().as_ref(),
+    ]))?;
+    ensure!(
+        output.status == 0,
+        "signtool verify /pa /all /tw failed with exit code {}",
+        output.status
+    );
+    Ok(())
+}
+
+fn verify_windows_pe_signatures(
+    signtool: &Path,
+    label: &str,
+    root: &Path,
+    files: &[PathBuf],
+) -> Result<()> {
+    ensure!(
+        !files.is_empty(),
+        "{label}: no Windows PE files found under {}. Refusing to publish an unverified inventory.",
+        root.display()
+    );
+    let root = absolute_path(root)?;
+    let files = files
+        .iter()
+        .map(|file| absolute_path(file))
+        .collect::<Result<Vec<_>>>()?;
+    let rows = authenticode_report(&files)?;
+    let mut failures = Vec::new();
+    for file in &files {
+        let relative = relative_display(&root, file);
+        if let Err(error) = verify_pe_signature(signtool, file) {
+            failures.push(format!("{relative}: {error}"));
+            continue;
+        }
+        let Some(row) = rows
+            .iter()
+            .find(|row| same_windows_path(&row.path, file.as_path()))
+        else {
+            failures.push(format!(
+                "{relative}: Get-AuthenticodeSignature reported no row for this file"
+            ));
+            continue;
+        };
+        if let Err(error) = assert_signed_by_known_publisher(row, &relative) {
+            failures.push(format!("{relative}: {error}"));
+        }
+    }
+    ensure!(
+        failures.is_empty(),
+        "{label}: {} of {} Windows binaries do not have an approved signature:\n{}",
+        failures.len(),
+        files.len(),
+        failures.join("\n")
+    );
+    println!(
+        "{label}: verified {} Windows binary signatures.",
+        files.len()
+    );
+    Ok(())
+}
+
+fn verify_windows_unpacked_signatures_step() -> Result<()> {
+    let build_channel = env::var("BUILD_CHANNEL").unwrap_or_else(|_| "stable".to_string());
+    let arch = require_env("ARCH")?;
+    let config = windows_package_config(&build_channel, &arch);
+    let pack_dir = resolve_windows_unpacked_dir(&arch, &config.main_exe)?;
+    let files = collect_pe_files(&pack_dir)?;
+    assert_windows_package_file_policy(&pack_dir, &arch)?;
+    assert_windows_native_pe_machines(&pack_dir, &files, &arch, &config.main_exe)?;
+    assert_expected_windows_pe_inventory(&pack_dir, &files, &arch, &config.main_exe)?;
+    ensure!(
+        files.iter().any(|file| extension_is(file, "node")),
+        "No .node addon was detected as a PE file under {}; the exe,dll,node signing filter would have been a silent no-op.",
+        pack_dir.display()
+    );
+    ensure!(
+        files.iter().any(|file| extension_is(file, "dll")),
+        "No .dll was detected as a PE file under {}; the exe,dll,node signing filter would have been a silent no-op.",
+        pack_dir.display()
+    );
+    let signtool = find_signtool()?;
+    verify_windows_pe_signatures(&signtool, "win-unpacked", &pack_dir, &files)
+}
+
+fn short_extraction_root(key: &str) -> PathBuf {
+    let drive = env::var("SystemDrive").unwrap_or_else(|_| "C:".to_string());
+    let base = PathBuf::from(format!("{}\\fxv", drive.trim_end_matches(['\\', '/'])));
+    let digest = hex::encode(Sha256::digest(key.as_bytes()));
+    base.join(&digest[..12])
+}
+
+fn extract_zip_safely(archive_path: &Path, destination: &Path) -> Result<()> {
+    let file = File::open(archive_path)
+        .with_context(|| format!("Failed to open {}", archive_path.display()))?;
+    let mut archive = zip::ZipArchive::new(file)
+        .with_context(|| format!("Failed to read zip {}", archive_path.display()))?;
+    fs::create_dir_all(destination)
+        .with_context(|| format!("Failed to create {}", destination.display()))?;
+    for index in 0..archive.len() {
+        let mut entry = archive.by_index(index)?;
+        let is_dir = entry.is_dir();
+        let relative = entry.enclosed_name().ok_or_else(|| {
+            anyhow!(
+                "Refusing to extract unsafe archive path '{}' from {}",
+                entry.name(),
+                archive_path.display()
+            )
+        })?;
+        let target = destination.join(relative);
+        if is_dir {
+            fs::create_dir_all(&target)
+                .with_context(|| format!("Failed to create {}", target.display()))?;
+            continue;
+        }
+        if let Some(parent) = target.parent() {
+            fs::create_dir_all(parent)
+                .with_context(|| format!("Failed to create {}", parent.display()))?;
+        }
+        let mut output = File::create(&target)
+            .with_context(|| format!("Failed to create {}", target.display()))?;
+        io::copy(&mut entry, &mut output)
+            .with_context(|| format!("Failed to extract {}", target.display()))?;
+    }
+    Ok(())
+}
+
+fn verify_windows_signed_artifacts_step() -> Result<()> {
+    let build_channel = env::var("BUILD_CHANNEL").unwrap_or_else(|_| "stable".to_string());
+    let arch = require_env("ARCH")?;
+    let version = require_env("VERSION")?;
+    let config = windows_package_config(&build_channel, &arch);
+
+    let nupkg = first_file_matching(&config.output_dir, |name| name.ends_with("-full.nupkg"))
+        .ok_or_else(|| {
+            anyhow!(
+                "No Velopack full nupkg found in {}",
+                config.output_dir.display()
+            )
+        })?;
+    let setup_exe = config.output_dir.join(format!(
+        "{}-{version}-win-{arch}.exe",
+        config.artifact_prefix
+    ));
+    ensure!(
+        setup_exe.is_file(),
+        "Velopack Setup.exe not found: {}",
+        setup_exe.display()
+    );
+    let portable_zip = PathBuf::from("dist-electron").join(format!(
+        "{}-{version}-portable-win-{arch}.zip",
+        config.artifact_prefix
+    ));
+    ensure!(
+        portable_zip.is_file(),
+        "Portable ZIP not found: {}",
+        portable_zip.display()
+    );
+
+    let staged_nupkgs = collect_files(&config.output_dir)?
+        .into_iter()
+        .filter(|path| extension_is(path, "nupkg"))
+        .collect::<Vec<_>>();
+    let unclassified_nupkgs = staged_nupkgs
+        .iter()
+        .filter(|path| **path != nupkg)
+        .map(|path| path.display().to_string())
+        .collect::<Vec<_>>();
+    ensure!(
+        unclassified_nupkgs.is_empty(),
+        "{} stages {} nupkg(s) other than the verified full package, so they would be published unverified:\n{}",
+        config.output_dir.display(),
+        unclassified_nupkgs.len(),
+        unclassified_nupkgs.join("\n")
+    );
+
+    let unverified_zips = collect_files(&config.output_dir)?
+        .into_iter()
+        .filter(|path| extension_is(path, "zip") && *path != portable_zip)
+        .map(|path| path.display().to_string())
+        .collect::<Vec<_>>();
+    ensure!(
+        unverified_zips.is_empty(),
+        "{} stages {} zip(s) that are not the verified portable archive {}, so they would be published unverified:\n{}",
+        config.output_dir.display(),
+        unverified_zips.len(),
+        portable_zip.display(),
+        unverified_zips.join("\n")
+    );
+
+    let signtool = find_signtool()?;
+    let root = short_extraction_root(&format!("{}-{version}-{arch}", config.pack_id));
+    remove_dir_if_exists(&root)?;
+
+    let nupkg_root = root.join("n");
+    extract_zip_safely(&nupkg, &nupkg_root)?;
+    let lib_app = nupkg_root.join("lib").join("app");
+    ensure!(
+        lib_app.is_dir(),
+        "{} contains no lib/app tree.",
+        nupkg.display()
+    );
+    ensure!(
+        lib_app.join("Squirrel.exe").is_file(),
+        "{} contains no lib/app/Squirrel.exe.",
+        nupkg.display()
+    );
+    let execution_stub = format!("{}_ExecutionStub.exe", config.pack_title);
+    ensure!(
+        lib_app.join(&execution_stub).is_file(),
+        "{} contains no lib/app/{execution_stub}.",
+        nupkg.display()
+    );
+    let nupkg_files = collect_pe_files(&lib_app)?;
+    assert_windows_package_file_policy(&lib_app, &arch)?;
+    assert_windows_native_pe_machines(&lib_app, &nupkg_files, &arch, &config.main_exe)?;
+    assert_expected_windows_pe_inventory(&lib_app, &nupkg_files, &arch, &config.main_exe)?;
+    verify_windows_pe_signatures(&signtool, "nupkg lib/app", &lib_app, &nupkg_files)?;
+
+    let portable_root = root.join("p");
+    extract_zip_safely(&portable_zip, &portable_root)?;
+    let portable_files = collect_pe_files(&portable_root)?;
+    assert_windows_package_file_policy(&portable_root, &arch)?;
+    assert_windows_native_pe_machines(&portable_root, &portable_files, &arch, &config.main_exe)?;
+    assert_expected_windows_pe_inventory(&portable_root, &portable_files, &arch, &config.main_exe)?;
+    verify_windows_pe_signatures(&signtool, "portable zip", &portable_root, &portable_files)?;
+
+    let staged_installers = collect_pe_files(&config.output_dir)?;
+    ensure!(
+        staged_installers.contains(&setup_exe),
+        "Velopack output directory does not contain the renamed Setup executable {}",
+        setup_exe.display()
+    );
+    verify_windows_pe_signatures(&signtool, "setup", &config.output_dir, &staged_installers)?;
+
+    remove_dir_if_exists(&root)
+}
+
 fn prepare_artifacts_windows_step() -> Result<()> {
     let arch = require_env("ARCH")?;
     let staging = Path::new("upload_staging");

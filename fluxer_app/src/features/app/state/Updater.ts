@@ -55,6 +55,7 @@ const CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const MIN_CHECK_INTERVAL_MS = 60 * 1000;
 const MANUAL_DOWNLOAD_REFRESH_TIMEOUT_MS = 5 * 1000;
 const WEB_CHECK_TIMEOUT_MS = 15 * 1000;
+const NATIVE_CHECK_TIMEOUT_MS = 30 * 1000;
 const VERSION_ENDPOINT = '/version.json';
 const CURRENT_BUILD_VERSION = Config.PUBLIC_BUILD_VERSION ?? null;
 const ALLOWED_WEB_UPDATE_HOSTS = new Set([
@@ -159,6 +160,7 @@ class Updater {
 	private unsubscribeNativeEvents: (() => void) | null = null;
 	private updateReadyNagbarDismissedVersion: string | null = null;
 	private pendingManualDownloadRefreshes = 0;
+	private checkInProgress = false;
 
 	constructor() {
 		makeAutoObservable(this, {}, {autoBind: true});
@@ -195,10 +197,6 @@ class Updater {
 
 	get nativeManualDownloadOptions(): ReadonlyArray<UpdaterDownloadOption> {
 		return this.snapshot.context.nativeManualDownloadOptions;
-	}
-
-	private get checkInProgress(): boolean {
-		return this.snapshot.context.checkInProgress;
 	}
 
 	private get nativeCheckFailed(): boolean {
@@ -497,6 +495,7 @@ class Updater {
 			return;
 		}
 
+		this.checkInProgress = true;
 		this.transition({type: 'check.started'});
 
 		const checkContext: 'user' | 'background' = userInitiated ? 'user' : 'background';
@@ -520,6 +519,7 @@ class Updater {
 				pushUpdateCheckFailedModal();
 			}
 		} finally {
+			this.checkInProgress = false;
 			this.transition({type: failed ? 'check.failed' : 'check.finished', now: Date.now()});
 		}
 	}
@@ -527,12 +527,17 @@ class Updater {
 	private async checkNativeUpdate(context: 'user' | 'background'): Promise<boolean> {
 		const electronApi = getElectronAPI();
 		if (!electronApi) return false;
+		let timeoutId: number | undefined;
+		const timedOut = new Promise<false>((resolve) => {
+			timeoutId = window.setTimeout(() => resolve(false), NATIVE_CHECK_TIMEOUT_MS);
+		});
 		try {
-			await electronApi.updaterCheck(context);
-			return true;
+			return await Promise.race([electronApi.updaterCheck(context).then(() => true), timedOut]);
 		} catch (error) {
 			logger.debug('Native update check failed silently:', error);
 			return false;
+		} finally {
+			window.clearTimeout(timeoutId);
 		}
 	}
 
@@ -694,6 +699,7 @@ class Updater {
 		if (this.checkInProgress) {
 			return option;
 		}
+		this.checkInProgress = true;
 		this.transition({type: 'check.started'});
 		let timeoutId: number | undefined;
 		const timedOut = new Promise<boolean>((resolve) => {
@@ -708,6 +714,7 @@ class Updater {
 			return this.nativeManualDownloadOptions.find((candidate) => candidate.format === option.format) ?? option;
 		} finally {
 			window.clearTimeout(timeoutId);
+			this.checkInProgress = false;
 			this.transition({type: 'check.finished', now: Date.now()});
 		}
 	}

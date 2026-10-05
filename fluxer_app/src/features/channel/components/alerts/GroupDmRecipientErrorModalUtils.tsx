@@ -5,7 +5,7 @@ import {GenericErrorModal} from '@app/features/app/components/alerts/GenericErro
 import {failureCode, failureMessage} from '@app/features/platform/utils/ResponseInspection';
 import * as ModalCommands from '@app/features/ui/commands/ModalCommands';
 import {modal} from '@app/features/ui/commands/ModalCommands';
-import {ACCOUNT_LIMITED_NOTICE_DESCRIPTOR} from '@app/features/user/utils/AccountLimitUtils';
+import {handleAccountLimitedError} from '@app/features/user/utils/AccountLimitUtils';
 import {APIErrorCodes} from '@fluxer/constants/src/ApiErrorCodes';
 import {msg} from '@lingui/core/macro';
 
@@ -36,6 +36,7 @@ const INVITE_LINK_FAILED_MESSAGE_DESCRIPTOR = msg({
 });
 
 export function showGroupRecipientAddFailedModal(error: unknown): void {
+	if (handleAccountLimitedError(error)) return;
 	const code = failureCode(error);
 	ModalCommands.push(
 		modal(() => {
@@ -65,7 +66,8 @@ export function showGroupRecipientAddFailedModal(error: unknown): void {
 	);
 }
 
-export function showGroupInviteCreateFailedModal(): void {
+export function showGroupInviteCreateFailedModal(error: unknown): void {
+	if (handleAccountLimitedError(error)) return;
 	ModalCommands.push(
 		modal(() => (
 			<GenericErrorModal
