@@ -25,7 +25,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::env;
 use std::ffi::{OsStr, OsString};
 use std::fs::{self, File, OpenOptions};
-use std::io::{self, Read, Write};
+use std::io::{self, Read, Write, SeekFrom, Seek};
 use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::{Duration, Instant};
