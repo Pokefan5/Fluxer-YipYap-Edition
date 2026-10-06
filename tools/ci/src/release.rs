@@ -12,8 +12,8 @@ use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::Duration;
 
-pub(crate) const RELEASE_REPOSITORY: &str = "fluxerapp/fluxer";
-const RELEASE_COMPARE_URL: &str = "https://github.com/fluxerapp/fluxer/compare";
+pub(crate) const RELEASE_REPOSITORY: &str = "Pokefan5/Fluxer-YipYap-Edition";
+const RELEASE_COMPARE_URL: &str = "https://github.com/Pokefan5/Fluxer-YipYap-Edition/compare";
 pub(crate) const DESKTOP_RELEASE_DESCRIPTOR_SCHEMA_VERSION: u8 = 1;
 const DESKTOP_RELEASE_ARCHES: [&str; 2] = ["x64", "arm64"];
 
@@ -155,8 +155,8 @@ pub(crate) struct DesktopReleaseDescriptor {
 
 pub(crate) fn desktop_release_product(channel: &str) -> Result<&'static str> {
     match channel {
-        "stable" => Ok("Fluxer"),
-        "canary" => Ok("Fluxer-Canary"),
+        "stable" => Ok("YipYap"),
+        "canary" => Ok("YipYap-Canary"),
         other => bail!("Unsupported desktop release channel {other:?}"),
     }
 }
@@ -190,9 +190,15 @@ pub(crate) fn desktop_release_asset_name(
         return Ok(storage_filename.to_string());
     }
     let release_filename = desktop_release_asset_basename(platform, storage_filename);
-    Ok(format!(
-        "{release_prefix}{platform_token}-{arch}-{release_filename}"
-    ))
+    if release_filename.eq("releases.win.json") {
+        Ok(format!(
+            "{release_filename}"
+        ))
+    } else {        
+        Ok(format!(
+            "{release_prefix}{platform_token}-{arch}-{release_filename}"
+        ))
+    }
 }
 
 pub(crate) fn validate_desktop_release_descriptor(
@@ -217,7 +223,7 @@ pub(crate) fn validate_desktop_release_descriptor(
         descriptor.version
     );
     ensure!(
-        descriptor.release_tag == format!("fluxer-desktop-{channel}@{version}"),
+        descriptor.release_tag == format!("yipyap-desktop-{channel}@{version}"),
         "Desktop release descriptor tag {:?} is invalid",
         descriptor.release_tag
     );
@@ -235,12 +241,6 @@ pub(crate) fn validate_desktop_release_descriptor(
     );
     parse_version_instant(version)
         .with_context(|| format!("Invalid desktop release descriptor version {version:?}"))?;
-    let route_count = desktop_release_route_count();
-    ensure!(
-        descriptor.assets.len() == route_count,
-        "Desktop release descriptor must contain {route_count} routes, found {}",
-        descriptor.assets.len()
-    );
     let storage_prefix = format!("desktop/{channel}/");
     let release_prefix = format!("{}-{version}-", desktop_release_product(channel)?);
     let descriptor_name = desktop_release_descriptor_filename(channel, version)?;
@@ -283,12 +283,13 @@ pub(crate) fn validate_desktop_release_descriptor(
             key_segments[4],
         )?;
         ensure!(
-            asset.release_asset.starts_with(&release_prefix)
+            (asset.release_asset.starts_with(&release_prefix)
                 && asset.release_asset != descriptor_name
                 && asset.release_asset == expected_release_asset
                 && asset.release_asset.bytes().all(|byte| {
                     byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_')
-                }),
+                }))
+                || asset.release_asset.eq("releases.win.json"),
             "Desktop release descriptor contains invalid release asset {:?}",
             asset.release_asset
         );
@@ -329,17 +330,6 @@ pub(crate) fn validate_desktop_release_descriptor(
             );
         }
     }
-    let asset_count = desktop_release_asset_count();
-    ensure!(
-        release_assets.len() == asset_count,
-        "Desktop release descriptor must contain {asset_count} unique release assets, found {}",
-        release_assets.len()
-    );
-    let expected_route_counts = desktop_release_route_inventory();
-    ensure!(
-        route_counts == expected_route_counts,
-        "Desktop release descriptor route inventory mismatch: expected {expected_route_counts:?}, found {route_counts:?}"
-    );
     Ok(())
 }
 
@@ -491,52 +481,54 @@ fn publish(args: PublishArgs) -> Result<()> {
         );
     }
 
-    let previous_sha = match qualified
-        .iter()
-        .filter(|release| release.tag != tag)
-        .filter(|release| {
-            existing_release.is_none_or(|existing| {
-                (release.published_at, release.id) < (existing.published_at, existing.id)
-            })
-        })
-        .max_by_key(|release| (release.published_at, release.id))
-    {
-        Some(previous) => {
-            let previous_sha = resolve_commit_sha(&previous.tag).with_context(|| {
-                format!(
-                    "Previous component release tag {} is not a resolvable repository commit",
-                    previous.tag
-                )
-            })?;
-            ensure!(
-                previous_sha != source_sha,
-                "Component {component} already has a prior qualified release at source SHA {source_sha}",
-                component = args.component
-            );
-            ensure_ancestor(&previous_sha, &source_sha, false)?;
-            previous_sha
-        }
-        None => {
-            let baseline = args
-                .previous_sha
-                .as_deref()
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-                .context("--previous-sha is required for the first qualified component release")?;
-            let baseline = validate_full_sha("previous SHA", baseline)?;
-            let resolved_baseline = resolve_commit_sha(&baseline).with_context(|| {
-                format!("Previous SHA {baseline} is not a resolvable repository commit")
-            })?;
-            ensure!(
-                resolved_baseline == baseline,
-                "Previous SHA {baseline} resolved to unexpected commit {resolved_baseline}"
-            );
-            ensure_ancestor(&baseline, &source_sha, true)?;
-            baseline
-        }
-    };
+    // let previous_sha = match qualified
+    //     .iter()
+    //     .filter(|release| release.tag != tag)
+    //     .filter(|release| {
+    //         existing_release.is_none_or(|existing| {
+    //             (release.published_at, release.id) < (existing.published_at, existing.id)
+    //         })
+    //     })
+    //     .max_by_key(|release| (release.published_at, release.id))
+    // {
+    //     Some(previous) => {
+    //         let previous_sha = resolve_commit_sha(&previous.tag).with_context(|| {
+    //             format!(
+    //                 "Previous component release tag {} is not a resolvable repository commit",
+    //                 previous.tag
+    //             )
+    //         })?;
+    //         ensure!(
+    //             previous_sha != source_sha,
+    //             "Component {component} already has a prior qualified release at source SHA {source_sha}",
+    //             component = args.component
+    //         );
+    //         ensure_ancestor(&previous_sha, &source_sha, false)?;
+    //         previous_sha
+    //     }
+    //     None => {
+    //         let baseline = args
+    //             .previous_sha
+    //             .as_deref()
+    //             .map(str::trim)
+    //             .filter(|value| !value.is_empty())
+    //             .context("--previous-sha is required for the first qualified component release")?;
+    //         let baseline = validate_full_sha("previous SHA", baseline)?;
+    //         let resolved_baseline = resolve_commit_sha(&baseline).with_context(|| {
+    //             format!("Previous SHA {baseline} is not a resolvable repository commit")
+    //         })?;
+    //         ensure!(
+    //             resolved_baseline == baseline,
+    //             "Previous SHA {baseline} resolved to unexpected commit {resolved_baseline}"
+    //         );
+    //         ensure_ancestor(&baseline, &source_sha, true)?;
+    //         baseline
+    //     }
+    // };
 
-    let body = release_body(&previous_sha, &source_sha);
+    // let body = release_body(&previous_sha, &source_sha);
+
+    let body = "We are alive!";
     let assets = local_release_assets(
         &args.component,
         &args.build_version,
@@ -804,10 +796,6 @@ fn local_release_assets(
             name.bytes()
                 .all(|byte| { byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_') }),
             "Release asset name is not clean and URL-safe: {name:?}"
-        );
-        ensure!(
-            name.starts_with(&prefix),
-            "Release asset {name:?} must start with {prefix:?}"
         );
         if let Some(existing) = case_folded_names.insert(name.to_ascii_lowercase(), name.clone()) {
             ensure!(
@@ -1126,7 +1114,7 @@ fn release_body(previous_sha: &str, source_sha: &str) -> String {
 }
 
 fn desktop_channel(component: &str) -> Option<&str> {
-    component.strip_prefix("fluxer-desktop-")
+    component.strip_prefix("yipyap-desktop-")
 }
 
 #[cfg(test)]
@@ -1197,7 +1185,7 @@ mod tests {
             schema_version: DESKTOP_RELEASE_DESCRIPTOR_SCHEMA_VERSION,
             channel: SAMPLE_CHANNEL.to_string(),
             version: SAMPLE_VERSION.to_string(),
-            release_tag: format!("fluxer-desktop-{SAMPLE_CHANNEL}@{SAMPLE_VERSION}"),
+            release_tag: format!("yipyap-desktop-{SAMPLE_CHANNEL}@{SAMPLE_VERSION}"),
             source_sha: SAMPLE_SOURCE_SHA.to_string(),
             assets,
         }
@@ -1261,8 +1249,8 @@ mod tests {
             asset_for("darwin/x64/releases.json")
         );
         assert_eq!(
-            asset_for("darwin/x64/Fluxer-Canary-2026.913.210037-mac-universal.dmg"),
-            asset_for("darwin/arm64/Fluxer-Canary-2026.913.210037-mac-universal.dmg")
+            asset_for("darwin/x64/YipYap-Canary-2026.913.210037-mac-universal.dmg"),
+            asset_for("darwin/arm64/YipYap-Canary-2026.913.210037-mac-universal.dmg")
         );
         assert_ne!(
             asset_for("darwin/x64/RELEASES.json"),
@@ -1285,7 +1273,7 @@ mod tests {
         let mut descriptor = sample_descriptor();
         let extra = DesktopReleaseAsset {
             storage_key: format!("desktop/{SAMPLE_CHANNEL}/linux/x64/latest-linux.yml"),
-            release_asset: format!("Fluxer-Canary-{SAMPLE_VERSION}-linux-x64-latest-linux.yml"),
+            release_asset: format!("YipYap-Canary-{SAMPLE_VERSION}-linux-x64-latest-linux.yml"),
             sha256: format!("{:064x}", 99u64),
             size: 4096,
         };

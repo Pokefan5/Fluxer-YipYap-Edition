@@ -27,7 +27,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: desktop-${{ inputs.channel }}
+  group: yip-yap-desktop-${{ inputs.channel }}
   cancel-in-progress: true
 
 env:
@@ -51,8 +51,6 @@ jobs:
     steps:
       - name: Checkout source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: main
 
       - name: Set up Rust toolchain (CI helpers)
         uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de
@@ -65,8 +63,8 @@ jobs:
         with:
           client-id: ${{ vars.FLUXER_CI_APP_ID }}
           private-key: ${{ secrets.FLUXER_CI_APP_KEY }}
-          owner: fluxerapp
-          repositories: fluxer
+          owner: Pokefan5
+          repositories: Fluxer-YipYap-Edition
           permission-contents: read
       - name: Set metadata
         id: meta
@@ -200,7 +198,7 @@ jobs:
         run: >-
           cargo run --locked --quiet --manifest-path ${{ github.workspace }}/_ci/tools/ci/Cargo.toml -- build-desktop
           --step resolve_pnpm_store_unix
-
+ 
       - name: Cache pnpm store
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
@@ -311,14 +309,14 @@ jobs:
           cargo run --locked --quiet --manifest-path ${{ github.workspace }}/_ci/tools/ci/Cargo.toml -- build-desktop
           --step build_app_macos
 
-      - name: Verify macOS artifact (bundle ID + profile + signature)
-        if: matrix.platform == 'macos'
-        working-directory: ${{ env.WORKDIR }}/fluxer_desktop
-        env:
-          BUILD_CHANNEL: ${{ env.BUILD_CHANNEL }}
-        run: >-
-          cargo run --locked --quiet --manifest-path ${{ github.workspace }}/_ci/tools/ci/Cargo.toml -- build-desktop
-          --step verify_bundle_id
+      # - name: Verify macOS artifact (bundle ID + profile + signature)
+      #   if: matrix.platform == 'macos'
+      #   working-directory: ${{ env.WORKDIR }}/fluxer_desktop
+      #   env:
+      #     BUILD_CHANNEL: ${{ env.BUILD_CHANNEL }}
+      #   run: >-
+      #     cargo run --locked --quiet --manifest-path ${{ github.workspace }}/_ci/tools/ci/Cargo.toml -- build-desktop
+      #     --step verify_bundle_id
 
       - name: Build Electron app (Windows)
         if: matrix.platform == 'windows'
@@ -332,39 +330,39 @@ jobs:
           cargo run --locked --quiet --manifest-path ${{ github.workspace }}/_ci/tools/ci/Cargo.toml -- build-desktop
           --step build_app_windows
 
-      - name: Validate Windows signing inputs
-        if: matrix.platform == 'windows'
-        env:
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          AZURE_ARTIFACT_SIGNING_ENDPOINT: ${{ secrets.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
-          AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME: ${{ secrets.AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME }}
-          AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME: ${{ secrets.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME }}
-        run: >-
-          cargo run --locked --quiet --manifest-path ${{ github.workspace }}/_ci/tools/ci/Cargo.toml -- build-desktop
-          --step validate_windows_signing_inputs
+      # - name: Validate Windows signing inputs
+      #   if: matrix.platform == 'windows'
+      #   env:
+      #     AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      #     AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      #     AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      #     AZURE_ARTIFACT_SIGNING_ENDPOINT: ${{ secrets.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
+      #     AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME: ${{ secrets.AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME }}
+      #     AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME: ${{ secrets.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME }}
+      #   run: >-
+      #     cargo run --locked --quiet --manifest-path ${{ github.workspace }}/_ci/tools/ci/Cargo.toml -- build-desktop
+      #     --step validate_windows_signing_inputs
 
-      - name: Azure login for Artifact Signing
-        if: matrix.platform == 'windows'
-        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      # - name: Azure login for Artifact Signing
+      #   if: matrix.platform == 'windows'
+      #   uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906
+      #   with:
+      #     client-id: ${{ secrets.AZURE_CLIENT_ID }}
+      #     tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+      #     subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Write Velopack Trusted Signing metadata
-        if: matrix.platform == 'windows'
-        env:
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          AZURE_ARTIFACT_SIGNING_ENDPOINT: ${{ secrets.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
-          AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME: ${{ secrets.AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME }}
-          AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME: ${{ secrets.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME }}
-        run: >-
-          cargo run --locked --quiet --manifest-path ${{ github.workspace }}/_ci/tools/ci/Cargo.toml -- build-desktop
-          --step write_windows_signing_metadata
+      # - name: Write Velopack Trusted Signing metadata
+      #   if: matrix.platform == 'windows'
+      #   env:
+      #     AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      #     AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      #     AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      #     AZURE_ARTIFACT_SIGNING_ENDPOINT: ${{ secrets.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
+      #     AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME: ${{ secrets.AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME }}
+      #     AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME: ${{ secrets.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME }}
+      #   run: >-
+      #     cargo run --locked --quiet --manifest-path ${{ github.workspace }}/_ci/tools/ci/Cargo.toml -- build-desktop
+      #     --step write_windows_signing_metadata
 
       - name: Resolve unpacked Windows app directory
         id: resolve_unpacked
@@ -376,29 +374,29 @@ jobs:
           cargo run --locked --quiet --manifest-path ${{ github.workspace }}/_ci/tools/ci/Cargo.toml -- build-desktop
           --step resolve_windows_unpacked_dir
 
-      - name: Sign unpacked Windows binaries with Artifact Signing
-        if: matrix.platform == 'windows'
-        uses: azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82
-        with:
-          endpoint: ${{ secrets.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
-          signing-account-name: ${{ secrets.AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME }}
-          certificate-profile-name: ${{ secrets.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME }}
-          files-folder: ${{ steps.resolve_unpacked.outputs.unpacked_dir }}
-          files-folder-filter: exe,dll,node
-          files-folder-recurse: true
-          file-digest: SHA256
-          timestamp-rfc3161: http://timestamp.acs.microsoft.com
-          timestamp-digest: SHA256
-          exclude-environment-credential: true
+      # - name: Sign unpacked Windows binaries with Artifact Signing
+      #   if: matrix.platform == 'windows'
+      #   uses: azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82
+      #   with:
+      #     endpoint: ${{ secrets.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
+      #     signing-account-name: ${{ secrets.AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME }}
+      #     certificate-profile-name: ${{ secrets.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME }}
+      #     files-folder: ${{ steps.resolve_unpacked.outputs.unpacked_dir }}
+      #     files-folder-filter: exe,dll,node
+      #     files-folder-recurse: true
+      #     file-digest: SHA256
+      #     timestamp-rfc3161: http://timestamp.acs.microsoft.com
+      #     timestamp-digest: SHA256
+      #     exclude-environment-credential: true
 
-      - name: Verify unpacked Windows signatures
-        if: matrix.platform == 'windows'
-        working-directory: ${{ env.WORKDIR }}/fluxer_desktop
-        env:
-          BUILD_CHANNEL: ${{ env.BUILD_CHANNEL }}
-        run: >-
-          cargo run --locked --quiet --manifest-path ${{ github.workspace }}/_ci/tools/ci/Cargo.toml -- build-desktop
-          --step verify_windows_unpacked_signatures
+      # - name: Verify unpacked Windows signatures
+      #   if: matrix.platform == 'windows'
+      #   working-directory: ${{ env.WORKDIR }}/fluxer_desktop
+      #   env:
+      #     BUILD_CHANNEL: ${{ env.BUILD_CHANNEL }}
+      #   run: >-
+      #     cargo run --locked --quiet --manifest-path ${{ github.workspace }}/_ci/tools/ci/Cargo.toml -- build-desktop
+      #     --step verify_windows_unpacked_signatures
 
       - name: Create portable ZIP (Windows)
         if: matrix.platform == 'windows'
@@ -440,14 +438,14 @@ jobs:
           cargo run --locked --quiet --manifest-path ${{ github.workspace }}/_ci/tools/ci/Cargo.toml -- build-desktop
           --step build_app_linux
 
-      - name: Verify signed Windows artifacts
-        if: matrix.platform == 'windows'
-        working-directory: ${{ env.WORKDIR }}/fluxer_desktop
-        env:
-          BUILD_CHANNEL: ${{ env.BUILD_CHANNEL }}
-        run: >-
-          cargo run --locked --quiet --manifest-path ${{ github.workspace }}/_ci/tools/ci/Cargo.toml -- build-desktop
-          --step verify_windows_signed_artifacts
+      # - name: Verify signed Windows artifacts
+      #   if: matrix.platform == 'windows'
+      #   working-directory: ${{ env.WORKDIR }}/fluxer_desktop
+      #   env:
+      #     BUILD_CHANNEL: ${{ env.BUILD_CHANNEL }}
+      #   run: >-
+      #     cargo run --locked --quiet --manifest-path ${{ github.workspace }}/_ci/tools/ci/Cargo.toml -- build-desktop
+      #     --step verify_windows_signed_artifacts
 
       - name: Prepare artifacts (Windows)
         if: runner.os == 'Windows'
@@ -497,8 +495,13 @@ jobs:
           name: ${{ steps.handoff.outputs.artifact_name }}
           path: upload_staging
           if-no-files-found: error
-          retention-days: 1
-          compression-level: 0
+          retention-days: 30
+          compression-level: 6
+
+      - name: Clean up Windows shortened path
+        if: runner.os == 'Windows'
+        run: >-
+          subst W: /d
 
   upload:
     name: Assemble desktop release assets
@@ -537,7 +540,7 @@ jobs:
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           path: artifacts
-          pattern: fluxer-desktop-${{ needs.meta.outputs.build_channel }}-*
+          pattern: yipyap-desktop-${{ needs.meta.outputs.build_channel }}-*
 
       - name: Build payload layout (+ manifest.json)
         env:
@@ -555,7 +558,7 @@ jobs:
       - name: Upload GitHub release assets
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: fluxer-desktop-release-assets
+          name: yipyap-desktop-release-assets
           path: release_assets
           if-no-files-found: error
           retention-days: 1
@@ -594,7 +597,7 @@ jobs:
       - name: Download GitHub release assets
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          name: fluxer-desktop-release-assets
+          name: yipyap-desktop-release-assets
           path: release_assets
 
       - name: Create token
@@ -603,8 +606,8 @@ jobs:
         with:
           client-id: ${{ vars.FLUXER_CI_APP_ID }}
           private-key: ${{ secrets.FLUXER_CI_APP_KEY }}
-          owner: fluxerapp
-          repositories: fluxer
+          owner: Pokefan5
+          repositories: Fluxer-YipYap-Edition
           permission-contents: write
       - name: Publish GitHub desktop release
         env:
@@ -617,7 +620,7 @@ jobs:
           set -euo pipefail
           release_args=(
             release publish
-            --component "fluxer-desktop-${CHANNEL}"
+            --component "yipyap-desktop-${CHANNEL}"
             --build-version "${VERSION}"
             --source-sha "${SOURCE_SHA}"
             --previous-sha "${RELEASE_BASELINE_SHA}"

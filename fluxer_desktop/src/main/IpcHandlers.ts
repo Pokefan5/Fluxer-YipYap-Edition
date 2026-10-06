@@ -500,7 +500,7 @@ export function registerIpcHandlers(): void {
 		if (!mainWindow || mainWindow.isDestroyed()) return;
 		mainWindow.webContents.send('accessibility-support-changed', Boolean(accessibilitySupportEnabled));
 	});
-	registerPasskeyHandlers();
+	//registerPasskeyHandlers();
 	registerLinuxAppearanceHandlers();
 }
 

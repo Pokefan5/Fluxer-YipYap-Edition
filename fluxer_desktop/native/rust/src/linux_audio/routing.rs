@@ -568,7 +568,7 @@ mod tests {
         let pid = std::process::id().to_string();
         self_identity.add_pid(&pid);
         self_identity.add_binary("fluxer");
-        self_identity.add_binary("fluxer.exe");
+        self_identity.add_binary("YipYap.exe");
         self_identity.add_display_name("Fluxer Canary");
         self_identity.add_display_prefix("Fluxer ");
 

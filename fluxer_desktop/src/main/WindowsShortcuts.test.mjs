@@ -24,12 +24,12 @@ const APPDATA = 'C:\\Users\\csh\\AppData\\Roaming';
 const USERPROFILE = 'C:\\Users\\csh';
 const PROGRAMS_DIR = path.win32.join(APPDATA, 'Microsoft', 'Windows', 'Start Menu', 'Programs');
 const AUTHOR_DIR = path.win32.join(PROGRAMS_DIR, 'Fluxer Platform AB');
-const ROOT_SHORTCUT = path.win32.join(PROGRAMS_DIR, 'Fluxer Canary.lnk');
-const AUTHOR_SHORTCUT = path.win32.join(AUTHOR_DIR, 'Fluxer Canary.lnk');
+const ROOT_SHORTCUT = path.win32.join(PROGRAMS_DIR, 'YipYap Canary.lnk');
+const AUTHOR_SHORTCUT = path.win32.join(AUTHOR_DIR, 'YipYap Canary.lnk');
 const ROOT_APP_DIR = 'C:\\Users\\csh\\AppData\\Local\\fluxer_desktop_canary';
 const CURRENT_DIR = path.win32.join(ROOT_APP_DIR, 'current');
-const CURRENT_EXE = path.win32.join(CURRENT_DIR, 'Fluxer Canary.exe');
-const STALE_EXE = path.win32.join(ROOT_APP_DIR, 'app-1.0.0', 'Fluxer Canary.exe');
+const CURRENT_EXE = path.win32.join(CURRENT_DIR, 'YipYap Canary.exe');
+const STALE_EXE = path.win32.join(ROOT_APP_DIR, 'app-1.0.0', 'YipYap Canary.exe');
 const LEGACY_APP_USER_MODEL_ID = 'velopack.fluxer_desktop_canary';
 
 function lnkBuffer(...values) {
@@ -100,8 +100,8 @@ function loadWindowsShortcuts(initialFiles) {
 			}
 			if (specifier === '@electron/common/DesktopIdentity') {
 				return {
-					DESKTOP_APP_NAME: 'Fluxer Canary',
-					WINDOWS_APP_USER_MODEL_ID: 'Fluxer.Fluxer.Canary',
+					DESKTOP_APP_NAME: 'YipYap Canary',
+					WINDOWS_APP_USER_MODEL_ID: 'YipYap.YipYap.Canary',
 					WINDOWS_LEGACY_APP_USER_MODEL_IDS: [LEGACY_APP_USER_MODEL_ID],
 					WINDOWS_SHORTCUT_AUTHOR: 'Fluxer Platform AB',
 					WINDOWS_TOAST_ACTIVATOR_CLSID: '{9CEDB5C0-3552-43B0-A279-2232E0CDF74C}',
@@ -153,7 +153,7 @@ describe('Windows Start Menu shortcut repair', () => {
 		const rewritten = harness.createdShortcuts.filter((options) => options.lnkPath === ROOT_SHORTCUT);
 		assert.equal(rewritten.length, 1);
 		assert.equal(rewritten[0].target, CURRENT_EXE);
-		assert.equal(rewritten[0].appUserModelId, 'Fluxer.Fluxer.Canary');
+		assert.equal(rewritten[0].appUserModelId, 'YipYap.YipYap.Canary');
 		assert.equal(harness.files.has(AUTHOR_SHORTCUT), false);
 	});
 
@@ -165,7 +165,7 @@ describe('Windows Start Menu shortcut repair', () => {
 		const rewritten = harness.createdShortcuts.filter((options) => options.lnkPath === AUTHOR_SHORTCUT);
 		assert.equal(rewritten.length, 1);
 		assert.equal(rewritten[0].target, CURRENT_EXE);
-		assert.equal(rewritten[0].appUserModelId, 'Fluxer.Fluxer.Canary');
+		assert.equal(rewritten[0].appUserModelId, 'YipYap.YipYap.Canary');
 		assert.equal(rewritten[0].toastActivatorClsid, '{9CEDB5C0-3552-43B0-A279-2232E0CDF74C}');
 	});
 });

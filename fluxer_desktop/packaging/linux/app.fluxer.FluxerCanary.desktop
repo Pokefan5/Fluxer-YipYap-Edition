@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 [Desktop Entry]
-Name=Fluxer Canary
+Name=YipYap Canary
 GenericName=Instant Messenger
-Comment=Canary build of Fluxer
+Comment=Canary build of YipYap
 Exec=app.fluxer.FluxerCanary %U
 TryExec=app.fluxer.FluxerCanary
 Icon=app.fluxer.FluxerCanary
