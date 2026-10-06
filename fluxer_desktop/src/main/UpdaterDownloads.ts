@@ -19,7 +19,7 @@ function getDesktopDownloadArch(arch: NodeJS.Architecture): DesktopDownloadArch 
 const DESKTOP_DOWNLOAD_ARCH = getDesktopDownloadArch(process.arch);
 const PKGS_BASE_URL = 'https://pkgs.fluxer.com';
 export const UPDATE_BASE_URL = `${PKGS_BASE_URL}/desktop/${BUILD_CHANNEL}/${process.platform}/${DESKTOP_DOWNLOAD_ARCH}`;
-export const UPDATE_GITHUB_URL = 'https://github.com/Pokefan5/Fluxer-YipYap-Edition'
+export const UPDATE_GITHUB_URL = 'https://github.com/SizeStation/YipYap-Desktop'
 export const DOWNLOAD_PAGE_URL =
 	BUILD_CHANNEL === 'canary' ? 'https://canary.fluxer.app/download' : 'https://fluxer.app/download';
 

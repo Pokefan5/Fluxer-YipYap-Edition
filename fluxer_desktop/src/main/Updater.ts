@@ -405,7 +405,7 @@ function registerElectronUpdater(getMainWindow: () => BrowserWindow | null): voi
 	updateElectronApp({
 		updateSource: {
 			type: UpdateSourceType.ElectronPublicUpdateService,
-			repo: 'Pokefan5/Fluxer-YipYap-Edition',
+			repo: 'SizeStation/YipYap-Desktop',
 		},
 		updateInterval: '12 hours',
 		logger: log,
